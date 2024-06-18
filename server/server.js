@@ -1,85 +1,79 @@
 const express = require('express');
 const fileUpload = require('express-fileupload');
-const cors = require('cors');
-const bodyParser = require('body-parser');
-const mysql = require('mysql2');
 const path = require('path');
+const cors = require('cors');
 const fs = require('fs');
 
 const app = express();
-
 app.use(cors());
-app.use(bodyParser.json());
+app.use(express.json());
 app.use(fileUpload());
+app.use('/upload', express.static(path.join(__dirname, 'upload')));
 
-const db = mysql.createConnection({
-  host: 'localhost',
-  user: 'root',
-  password: '',
-  database: 'online_radio'
-});
+const scheduleFilePath = path.join(__dirname, 'schedule.json');
 
-db.connect(err => {
-  if (err) throw err;
-  console.log('MySQL Connected...');
-});
+// Ensure the schedule file exists and is properly formatted
+if (!fs.existsSync(scheduleFilePath)) {
+  fs.writeFileSync(scheduleFilePath, JSON.stringify([]));
+} else {
+  try {
+    const data = fs.readFileSync(scheduleFilePath, 'utf8');
+    JSON.parse(data);
+  } catch (e) {
+    fs.writeFileSync(scheduleFilePath, JSON.stringify([]));
+  }
+}
 
 app.post('/upload', (req, res) => {
-  if (req.files === null) {
-    return res.status(400).json({ msg: 'No file uploaded' });
+  if (!req.files || Object.keys(req.files).length === 0) {
+    return res.status(400).send('No files were uploaded.');
   }
 
-  const file = req.files.file;
+  let sampleFile = req.files.file;
+  let uploadPath = path.join(__dirname, 'upload', sampleFile.name);
 
-  file.mv(`${__dirname}/uploads/${file.name}`, err => {
+  sampleFile.mv(uploadPath, (err) => {
     if (err) {
-      console.error(err);
       return res.status(500).send(err);
     }
-
-    const sql = 'INSERT INTO tracks (trackName) VALUES (?)';
-    db.query(sql, [file.name], (err, result) => {
-      if (err) throw err;
-      res.json({ fileName: file.name, filePath: `/uploads/${file.name}` });
-    });
-  });
-});
-
-app.post('/addTrack', (req, res) => {
-  const { trackName, timestamp } = req.body;
-  const sql = 'INSERT INTO tracks (trackName, timestamp) VALUES (?, ?)';
-  db.query(sql, [trackName, timestamp], (err, result) => {
-    if (err) throw err;
-    res.send('Track added...');
+    res.send('File uploaded!');
   });
 });
 
 app.get('/tracks', (req, res) => {
-  const sql = 'SELECT * FROM tracks';
-  db.query(sql, (err, results) => {
-    if (err) throw err;
-    res.json(results);
+  const directoryPath = path.join(__dirname, 'upload');
+  fs.readdir(directoryPath, (err, files) => {
+    if (err) {
+      return res.status(500).send('Unable to scan files!');
+    }
+    res.send(files);
   });
 });
 
-app.delete('/deleteTrack/:trackName', (req, res) => {
-  const trackName = req.params.trackName;
-  const sql = 'DELETE FROM tracks WHERE trackName = ?';
-  db.query(sql, [trackName], err => {
-    if (err) throw err;
-
-    fs.unlink(`${__dirname}/uploads/${trackName}`, err => {
-      if (err) {
-        console.error(err);
-        return res.status(500).send(err);
-      }
-
-      res.send('Track deleted...');
-    });
+app.get('/schedule', (req, res) => {
+  fs.readFile(scheduleFilePath, 'utf8', (err, data) => {
+    if (err) {
+      return res.status(500).send('Error reading schedule file');
+    }
+    try {
+      const schedule = JSON.parse(data);
+      res.send(schedule);
+    } catch (e) {
+      res.send([]);
+    }
   });
 });
 
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.post('/schedule', (req, res) => {
+  const schedule = req.body;
+  fs.writeFile(scheduleFilePath, JSON.stringify(schedule, null, 2), (err) => {
+    if (err) {
+      return res.status(500).send('Error saving schedule');
+    }
+    res.send('Schedule saved');
+  });
+});
 
-const PORT = 5000;
-app.listen(PORT, () => console.log(`Server started on port ${PORT}`));
+app.listen(5000, () => {
+  console.log('Server started on http://localhost:5000');
+});

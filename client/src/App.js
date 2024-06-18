@@ -1,25 +1,20 @@
+// src/App.js
 import React from 'react';
-import 'bootstrap/dist/css/bootstrap.min.css';
-import { Container, Row, Col } from 'react-bootstrap';
+import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import RadioPlayer from './components/RadioPlayer';
-import CustomTrackForm from './components/CustomTrackForm';
-import TrackList from './components/TrackList';
-import TrackManager from './components/TrackManager';
-import './App.css';
+import UploadTrack from './components/UploadTrack';
 
 function App() {
   return (
-    <Container>
-      <Row>
-        <Col>
-          <h1>Online Radio Streaming</h1>
-          <RadioPlayer />
-          <CustomTrackForm />
-          <TrackList />
-          <TrackManager />
-        </Col>
-      </Row>
-    </Container>
+    <Router>
+      <div className="App">
+        <Routes>
+          <Route path="/radio" element={<RadioPlayer />} />
+          <Route path="/upload" element={<UploadTrack />} />
+          <Route path="/" element={<div><h1>Welcome to the Radio Streaming Website</h1></div>} />
+        </Routes>
+      </div>
+    </Router>
   );
 }
 
