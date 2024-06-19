@@ -132,4 +132,21 @@ const RadioPlayer = () => {
           <h2>Current Time: {currentTime}</h2>
 
           {isAlarmBlocked ? (
-            <p>The alarm system is bloc
+            <p>The alarm system is blocked.</p>
+          ) : (
+            <>
+              <h2>Scheduled Tracks</h2>
+              <ul>
+                {schedule.map((item, index) => (
+                  <li key={index}>{item.time} - {item.track}</li>
+                ))}
+              </ul>
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+};
+
+export default RadioPlayer;
