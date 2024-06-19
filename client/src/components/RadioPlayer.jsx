@@ -1,48 +1,68 @@
 import React, { useRef, useState, useEffect } from 'react';
 import axios from 'axios';
+import { useParams } from 'react-router-dom';
 
 const RadioPlayer = () => {
+  const { id } = useParams();
   const audioRef = useRef(null);
   const trackRef = useRef(null);
   const [isMuted, setIsMuted] = useState(false);
-  const [tracks, setTracks] = useState([]);
   const [schedule, setSchedule] = useState([]);
-  const [newTrack, setNewTrack] = useState('');
-  const [newTime, setNewTime] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString('en-GB', { hour12: false }));
+  const [radioUrl, setRadioUrl] = useState('');
+  const [radioName, setRadioName] = useState('');
+  const [isBlocked, setIsBlocked] = useState(false);
+  const [isAlarmBlocked, setIsAlarmBlocked] = useState(false);
 
   useEffect(() => {
-    axios.get('http://localhost:5000/tracks')
+    fetchRadioProfile();
+    fetchSchedule();
+  }, []);
+
+  const fetchRadioProfile = () => {
+    axios.get(`http://localhost:5000/radiostreams/${id}`)
       .then(response => {
-        setTracks(response.data);
+        const radioProfile = response.data;
+        if (radioProfile) {
+          setRadioUrl(radioProfile.url);
+          setRadioName(radioProfile.name);
+          setIsBlocked(radioProfile.blocked);
+          setIsAlarmBlocked(radioProfile.alarmBlocked);
+        }
       })
       .catch(error => {
-        console.error('There was an error fetching the tracks!', error);
+        console.error('There was an error fetching the radio profile!', error);
       });
+  };
 
-    axios.get('http://localhost:5000/schedule')
+  const fetchSchedule = () => {
+    axios.get(`http://localhost:5000/radio/${id}/schedule`)
       .then(response => {
         setSchedule(response.data);
       })
       .catch(error => {
         console.error('There was an error fetching the schedule!', error);
       });
-  }, []);
+  };
 
   useEffect(() => {
     const interval = setInterval(() => {
       const now = new Date().toLocaleTimeString('en-GB', { hour12: false });
       setCurrentTime(now);
-      const scheduledTrack = schedule.find(track => track.time === now);
-      if (scheduledTrack) {
-        playScheduledTrack(scheduledTrack.track);
+      if (!isAlarmBlocked) {
+        const scheduledTrack = schedule.find(track => track.time === now);
+        if (scheduledTrack) {
+          playScheduledTrack(scheduledTrack.track);
+        }
       }
     }, 1000);
     return () => clearInterval(interval);
-  }, [schedule]);
+  }, [schedule, isAlarmBlocked]);
 
   const handlePlay = () => {
-    audioRef.current.play();
+    if (!isBlocked) {
+      audioRef.current.play();
+    }
   };
 
   const handleMute = () => {
@@ -51,9 +71,11 @@ const RadioPlayer = () => {
   };
 
   const playScheduledTrack = (track) => {
+    if (isBlocked || isAlarmBlocked) return;
+
     console.log('Attempting to play track:', track);
     fadeOut(audioRef.current, () => {
-      trackRef.current.src = `http://localhost:5000/upload/${track}`;
+      trackRef.current.src = `http://localhost:5000/uploads/${track}`;
       console.log('Track source set to:', trackRef.current.src);
       trackRef.current.load();
       trackRef.current.oncanplaythrough = () => {
@@ -95,54 +117,19 @@ const RadioPlayer = () => {
     }, 200);
   };
 
-  const handleAddTrack = () => {
-    const newSchedule = { track: newTrack, time: newTime };
-    const updatedSchedule = [...schedule, newSchedule];
-    setSchedule(updatedSchedule);
-    axios.post('http://localhost:5000/schedule', updatedSchedule)
-      .then(response => {
-        console.log('Schedule saved to server');
-      })
-      .catch(error => {
-        console.error('Error saving schedule to server', error);
-      });
-    setNewTrack('');
-    setNewTime('');
-  };
-
   return (
     <div className="radio-player">
-      <h1>Online Radio Player</h1>
-      <audio ref={audioRef} src="https://altair.streamerr.co/stream/8014" preload="none"></audio>
-      <audio ref={trackRef} preload="none"></audio>
-      <button onClick={handlePlay}>Live</button>
-      <button onClick={handleMute}>{isMuted ? 'Unmute' : 'Mute'}</button>
+      <h1>{radioName}</h1>
+      {isBlocked ? (
+        <p>This radio profile is blocked.</p>
+      ) : (
+        <>
+          <audio ref={audioRef} src={radioUrl} preload="none"></audio>
+          <audio ref={trackRef} preload="none"></audio>
+          <button onClick={handlePlay}>Live</button>
+          <button onClick={handleMute}>{isMuted ? 'Unmute' : 'Mute'}</button>
 
-      <h2>Current Time: {currentTime}</h2>
+          <h2>Current Time: {currentTime}</h2>
 
-      <h2>Schedule Tracks</h2>
-      <input 
-        type="text" 
-        placeholder="Enter time (HH:MM:SS)" 
-        value={newTime} 
-        onChange={(e) => setNewTime(e.target.value)} 
-      />
-      <select value={newTrack} onChange={(e) => setNewTrack(e.target.value)}>
-        <option value="">Select Track</option>
-        {tracks.map((track, index) => (
-          <option key={index} value={track}>{track}</option>
-        ))}
-      </select>
-      <button onClick={handleAddTrack}>Add</button>
-
-      <h2>Scheduled Tracks</h2>
-      <ul>
-        {schedule.map((item, index) => (
-          <li key={index}>{item.time} - {item.track}</li>
-        ))}
-      </ul>
-    </div>
-  );
-};
-
-export default RadioPlayer;
+          {isAlarmBlocked ? (
+            <p>The alarm system is bloc

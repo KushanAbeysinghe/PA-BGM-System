@@ -1,21 +1,25 @@
-// src/App.js
 import React from 'react';
+import 'bootstrap/dist/css/bootstrap.min.css';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
-import RadioPlayer from './components/RadioPlayer';
 import UploadTrack from './components/UploadTrack';
+import RadioPlayer from './components/RadioPlayer';
+import Dashboard from './components/Dashboard';
+import RadioProfile from './components/RadioProfile';
+import AddProfile from './components/AddProfile';
+import EditProfile from './components/EditProfile';
 
-function App() {
+const App = () => {
   return (
     <Router>
-      <div className="App">
-        <Routes>
-          <Route path="/radio" element={<RadioPlayer />} />
-          <Route path="/upload" element={<UploadTrack />} />
-          <Route path="/" element={<div><h1>Welcome to the Radio Streaming Website</h1></div>} />
-        </Routes>
-      </div>
+      <Routes>
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/add" element={<AddProfile />} />
+        <Route path="/radio/:id/edit" element={<EditProfile />} />
+        <Route path="/radio/:id/profile" element={<RadioProfile />} />
+        <Route path="/radio/:id" element={<RadioPlayer />} />
+      </Routes>
     </Router>
   );
-}
+};
 
 export default App;

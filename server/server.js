@@ -1,79 +1,178 @@
 const express = require('express');
-const fileUpload = require('express-fileupload');
+const multer = require('multer');
 const path = require('path');
+const fs = require('fs-extra');
 const cors = require('cors');
-const fs = require('fs');
 
 const app = express();
-app.use(cors());
+const PORT = process.env.PORT || 5000;
+
+const upload = multer({ dest: 'uploads/' });
+
 app.use(express.json());
-app.use(fileUpload());
-app.use('/upload', express.static(path.join(__dirname, 'upload')));
+app.use(cors());
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));  // Serve static files from the uploads directory
 
-const scheduleFilePath = path.join(__dirname, 'schedule.json');
+const profilesFile = path.join(__dirname, 'radioProfiles.json');
+const schedulesFile = path.join(__dirname, 'radioSchedules.json');
 
-// Ensure the schedule file exists and is properly formatted
-if (!fs.existsSync(scheduleFilePath)) {
-  fs.writeFileSync(scheduleFilePath, JSON.stringify([]));
-} else {
-  try {
-    const data = fs.readFileSync(scheduleFilePath, 'utf8');
-    JSON.parse(data);
-  } catch (e) {
-    fs.writeFileSync(scheduleFilePath, JSON.stringify([]));
-  }
-}
+// Initialize JSON files if they don't exist
+fs.ensureFileSync(profilesFile);
+fs.ensureFileSync(schedulesFile);
 
-app.post('/upload', (req, res) => {
-  if (!req.files || Object.keys(req.files).length === 0) {
-    return res.status(400).send('No files were uploaded.');
-  }
+let radioStreams = [];
+let schedules = {};
 
-  let sampleFile = req.files.file;
-  let uploadPath = path.join(__dirname, 'upload', sampleFile.name);
+const loadProfiles = async () => {
+  const data = await fs.readJson(profilesFile).catch(() => []);
+  radioStreams = data;
+};
 
-  sampleFile.mv(uploadPath, (err) => {
-    if (err) {
-      return res.status(500).send(err);
-    }
-    res.send('File uploaded!');
-  });
+const loadSchedules = async () => {
+  const data = await fs.readJson(schedulesFile).catch(() => ({}));
+  schedules = data;
+};
+
+const saveProfiles = async () => {
+  await fs.writeJson(profilesFile, radioStreams);
+};
+
+const saveSchedules = async () => {
+  await fs.writeJson(schedulesFile, schedules);
+};
+
+// Load profiles and schedules on startup
+loadProfiles();
+loadSchedules();
+
+app.get('/radiostreams', (req, res) => {
+  res.send(radioStreams);
 });
 
-app.get('/tracks', (req, res) => {
-  const directoryPath = path.join(__dirname, 'upload');
-  fs.readdir(directoryPath, (err, files) => {
+app.get('/radiostreams/:id', (req, res) => {
+  const { id } = req.params;
+  const stream = radioStreams.find(stream => stream.id == id);
+  if (stream) {
+    res.send(stream);
+  } else {
+    res.status(404).send('Radio stream not found');
+  }
+});
+
+app.post('/radiostreams', async (req, res) => {
+  const { name, url } = req.body;
+  const newStream = { id: Date.now(), name, url, blocked: false, alarmBlocked: false }; // Add alarmBlocked property
+  radioStreams.push(newStream);
+  await saveProfiles();
+  res.send(newStream);
+});
+
+app.put('/radiostreams/:id', async (req, res) => {
+  const { id } = req.params;
+  const { name, url } = req.body;
+  const stream = radioStreams.find(stream => stream.id == id);
+  if (stream) {
+    stream.name = name;
+    stream.url = url;
+    await saveProfiles();
+    res.send(stream);
+  } else {
+    res.status(404).send('Radio stream not found');
+  }
+});
+
+app.put('/radiostreams/:id/block', async (req, res) => {
+  const { id } = req.params;
+  const stream = radioStreams.find(stream => stream.id == id);
+  if (stream) {
+    stream.blocked = true;
+    await saveProfiles();
+    res.send('Radio stream blocked');
+  } else {
+    res.status(404).send('Radio stream not found');
+  }
+});
+
+app.put('/radiostreams/:id/unblock', async (req, res) => {
+  const { id } = req.params;
+  const stream = radioStreams.find(stream => stream.id == id);
+  if (stream) {
+    stream.blocked = false;
+    await saveProfiles();
+    res.send('Radio stream unblocked');
+  } else {
+    res.status(404).send('Radio stream not found');
+  }
+});
+
+app.put('/radiostreams/:id/block-alarm', async (req, res) => {
+  const { id } = req.params;
+  const stream = radioStreams.find(stream => stream.id == id);
+  if (stream) {
+    stream.alarmBlocked = true;
+    await saveProfiles();
+    res.send('Radio alarm system blocked');
+  } else {
+    res.status(404).send('Radio stream not found');
+  }
+});
+
+app.put('/radiostreams/:id/unblock-alarm', async (req, res) => {
+  const { id } = req.params;
+  const stream = radioStreams.find(stream => stream.id == id);
+  if (stream) {
+    stream.alarmBlocked = false;
+    await saveProfiles();
+    res.send('Radio alarm system unblocked');
+  } else {
+    res.status(404).send('Radio stream not found');
+  }
+});
+
+app.delete('/radiostreams/:id', async (req, res) => {
+  const { id } = req.params;
+  radioStreams = radioStreams.filter(stream => stream.id != id);
+  delete schedules[id];
+  await saveProfiles();
+  await saveSchedules();
+  res.send('Radio stream deleted');
+});
+
+app.post('/radio/:id/upload', upload.single('file'), (req, res) => {
+  const file = req.file;
+  const radioId = req.params.id;
+  if (!file) {
+    return res.status(400).send('No file uploaded.');
+  }
+
+  // Move the file to a permanent location
+  const targetPath = path.join(__dirname, 'uploads', file.originalname);
+  fs.renameSync(file.path, targetPath);
+
+  res.send({ fileName: file.originalname });
+});
+
+app.get('/radio/:id/tracks', (req, res) => {
+  fs.readdir(path.join(__dirname, 'uploads'), (err, files) => {
     if (err) {
-      return res.status(500).send('Unable to scan files!');
+      return res.status(500).send('Error reading tracks directory.');
     }
     res.send(files);
   });
 });
 
-app.get('/schedule', (req, res) => {
-  fs.readFile(scheduleFilePath, 'utf8', (err, data) => {
-    if (err) {
-      return res.status(500).send('Error reading schedule file');
-    }
-    try {
-      const schedule = JSON.parse(data);
-      res.send(schedule);
-    } catch (e) {
-      res.send([]);
-    }
-  });
+app.get('/radio/:id/schedule', (req, res) => {
+  const radioId = req.params.id;
+  res.send(schedules[radioId] || []);
 });
 
-app.post('/schedule', (req, res) => {
-  const schedule = req.body;
-  fs.writeFile(scheduleFilePath, JSON.stringify(schedule, null, 2), (err) => {
-    if (err) {
-      return res.status(500).send('Error saving schedule');
-    }
-    res.send('Schedule saved');
-  });
+app.post('/radio/:id/schedule', async (req, res) => {
+  const radioId = req.params.id;
+  schedules[radioId] = req.body;
+  await saveSchedules();
+  res.send('Schedule updated successfully.');
 });
 
-app.listen(5000, () => {
-  console.log('Server started on http://localhost:5000');
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
 });

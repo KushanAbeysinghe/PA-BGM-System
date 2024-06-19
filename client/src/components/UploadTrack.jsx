@@ -5,9 +5,13 @@ const UploadTrack = () => {
   const [file, setFile] = useState(null);
   const [message, setMessage] = useState('');
   const [schedule, setSchedule] = useState([]);
+  const [tracks, setTracks] = useState([]);
+  const [newTrack, setNewTrack] = useState('');
+  const [newTime, setNewTime] = useState('');
 
   useEffect(() => {
     fetchSchedule();
+    fetchTracks();
   }, []);
 
   const fetchSchedule = () => {
@@ -17,6 +21,16 @@ const UploadTrack = () => {
       })
       .catch(error => {
         console.error('There was an error fetching the schedule!', error);
+      });
+  };
+
+  const fetchTracks = () => {
+    axios.get('http://localhost:5000/tracks')
+      .then(response => {
+        setTracks(response.data);
+      })
+      .catch(error => {
+        console.error('There was an error fetching the tracks!', error);
       });
   };
 
@@ -51,12 +65,43 @@ const UploadTrack = () => {
       });
   };
 
+  const handleAddTrack = () => {
+    const newSchedule = { track: newTrack, time: newTime };
+    const updatedSchedule = [...schedule, newSchedule];
+    setSchedule(updatedSchedule);
+    axios.post('http://localhost:5000/schedule', updatedSchedule)
+      .then(response => {
+        console.log('Schedule saved to server');
+        fetchSchedule(); // Refresh schedule after adding new track
+      })
+      .catch(error => {
+        console.error('Error saving schedule to server', error);
+      });
+    setNewTrack('');
+    setNewTime('');
+  };
+
   return (
     <div className="upload-track">
       <h2>Upload Track</h2>
       <input type="file" onChange={handleFileChange} />
       <button onClick={handleUpload}>Upload</button>
       <p>{message}</p>
+
+      <h2>Schedule Tracks</h2>
+      <input
+        type="text"
+        placeholder="Enter time (HH:MM:SS)"
+        value={newTime}
+        onChange={(e) => setNewTime(e.target.value)}
+      />
+      <select value={newTrack} onChange={(e) => setNewTrack(e.target.value)}>
+        <option value="">Select Track</option>
+        {tracks.map((track, index) => (
+          <option key={index} value={track}>{track}</option>
+        ))}
+      </select>
+      <button onClick={handleAddTrack}>Add</button>
 
       <h2>Scheduled Tracks</h2>
       <ul>
