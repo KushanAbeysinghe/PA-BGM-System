@@ -3,6 +3,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs-extra');
 const cors = require('cors');
+const { addDays, differenceInDays } = require('date-fns'); // Use date-fns for date calculations
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -60,8 +61,10 @@ app.get('/radiostreams/:id', (req, res) => {
 });
 
 app.post('/radiostreams', async (req, res) => {
-  const { name, url } = req.body;
-  const newStream = { id: Date.now(), name, url, blocked: false, alarmBlocked: false }; // Add alarmBlocked property
+  const { name, url, subscriptionPlan } = req.body;
+  const createdDate = new Date();
+  const expirationDate = addDays(createdDate, getSubscriptionDays(subscriptionPlan));
+  const newStream = { id: Date.now(), name, url, blocked: false, alarmBlocked: true, subscriptionPlan, createdDate, expirationDate }; // Add subscription details
   radioStreams.push(newStream);
   await saveProfiles();
   res.send(newStream);
@@ -69,11 +72,18 @@ app.post('/radiostreams', async (req, res) => {
 
 app.put('/radiostreams/:id', async (req, res) => {
   const { id } = req.params;
-  const { name, url } = req.body;
+  const { name, url, subscriptionPlan } = req.body;
   const stream = radioStreams.find(stream => stream.id == id);
   if (stream) {
     stream.name = name;
     stream.url = url;
+    if (subscriptionPlan && subscriptionPlan !== stream.subscriptionPlan) {
+      const now = new Date();
+      const daysToAdd = getSubscriptionDays(subscriptionPlan);
+      stream.subscriptionPlan = subscriptionPlan;
+      stream.createdDate = now;
+      stream.expirationDate = addDays(now, daysToAdd);
+    }
     await saveProfiles();
     res.send(stream);
   } else {
@@ -121,9 +131,13 @@ app.put('/radiostreams/:id/unblock-alarm', async (req, res) => {
   const { id } = req.params;
   const stream = radioStreams.find(stream => stream.id == id);
   if (stream) {
+    const now = new Date();
+    const daysToAdd = getSubscriptionDays(stream.subscriptionPlan);
     stream.alarmBlocked = false;
+    stream.createdDate = now;
+    stream.expirationDate = addDays(now, daysToAdd);
     await saveProfiles();
-    res.send('Radio alarm system unblocked');
+    res.send('Radio alarm system unblocked and subscription renewed');
   } else {
     res.status(404).send('Radio stream not found');
   }
@@ -172,6 +186,23 @@ app.post('/radio/:id/schedule', async (req, res) => {
   await saveSchedules();
   res.send('Schedule updated successfully.');
 });
+
+const getSubscriptionDays = (plan) => {
+  switch (plan) {
+    case '1 Day':
+      return 1;
+    case '1 Month':
+      return 30;
+    case '3 Months':
+      return 90;
+    case '6 Months':
+      return 180;
+    case '1 Year':
+      return 365;
+    default:
+      return 0;
+  }
+};
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);

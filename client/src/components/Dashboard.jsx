@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
+import { differenceInDays } from 'date-fns'; // Use date-fns for date calculations
 
 const Dashboard = () => {
   const [radioStreams, setRadioStreams] = useState([]);
@@ -69,6 +70,12 @@ const Dashboard = () => {
       });
   };
 
+  const getDaysLeft = (expirationDate) => {
+    const now = new Date();
+    const expiration = new Date(expirationDate);
+    return differenceInDays(expiration, now);
+  };
+
   return (
     <div className="dashboard">
       <h2>Radio Streams Dashboard</h2>
@@ -76,7 +83,9 @@ const Dashboard = () => {
       <ul>
         {radioStreams.map((stream, index) => (
           <li key={index}>
-            {stream.name}
+            {stream.name} (Created: {new Date(stream.createdDate).toLocaleDateString()})
+            <br />
+            Days left: {getDaysLeft(stream.expirationDate)}
             <Link to={`/radio/${stream.id}/edit`}>Edit</Link>
             <Link to={`/radio/${stream.id}`}>Play</Link>
             <Link to={`/radio/${stream.id}/profile`}>Manage</Link>
