@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
-import { differenceInDays } from 'date-fns'; // Use date-fns for date calculations
+import { differenceInDays } from 'date-fns';
 
 const Dashboard = () => {
   const [radioStreams, setRadioStreams] = useState([]);
@@ -17,16 +17,6 @@ const Dashboard = () => {
       })
       .catch(error => {
         console.error('There was an error fetching the radio streams!', error);
-      });
-  };
-
-  const handleDelete = (id) => {
-    axios.delete(`http://localhost:5000/radiostreams/${id}`)
-      .then(response => {
-        fetchRadioStreams(); // Refresh the list after deletion
-      })
-      .catch(error => {
-        console.error('There was an error deleting the radio stream!', error);
       });
   };
 
@@ -83,13 +73,18 @@ const Dashboard = () => {
       <ul>
         {radioStreams.map((stream, index) => (
           <li key={index}>
+            <h3>{stream.companyName}</h3>
+            {/* {stream.logo && <img src={`http://localhost:5000/uploads/${stream.logo}`} alt="Company Logo" />} */}
             {stream.name} (Created: {new Date(stream.createdDate).toLocaleDateString()})
+            <br />
+            Email: {stream.email}
+            <br />
+            Subscription Plan: {stream.subscriptionPlan}
             <br />
             Days left: {getDaysLeft(stream.expirationDate)}
             <Link to={`/radio/${stream.id}/edit`}>Edit</Link>
             <Link to={`/radio/${stream.id}`}>Play</Link>
             <Link to={`/radio/${stream.id}/profile`}>Manage</Link>
-            <button onClick={() => handleDelete(stream.id)}>Delete</button>
             {stream.blocked ? (
               <button onClick={() => handleUnblock(stream.id)}>Unblock</button>
             ) : (

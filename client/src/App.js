@@ -17,6 +17,7 @@ const App = () => {
         <Route path="/radio/:id/edit" element={<EditProfile />} />
         <Route path="/radio/:id/profile" element={<RadioProfile />} />
         <Route path="/radio/:id" element={<RadioPlayer />} />
+       
       </Routes>
     </Router>
   );

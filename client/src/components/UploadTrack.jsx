@@ -1,21 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { useParams } from 'react-router-dom';
 
 const UploadTrack = () => {
+  const { id } = useParams();
   const [file, setFile] = useState(null);
   const [message, setMessage] = useState('');
   const [schedule, setSchedule] = useState([]);
-  const [tracks, setTracks] = useState([]);
   const [newTrack, setNewTrack] = useState('');
   const [newTime, setNewTime] = useState('');
+  const [tracks, setTracks] = useState([]);
 
   useEffect(() => {
     fetchSchedule();
     fetchTracks();
-  }, []);
+  }, [id]);
 
   const fetchSchedule = () => {
-    axios.get('http://localhost:5000/schedule')
+    axios.get(`http://localhost:5000/radio/${id}/schedule`)
       .then(response => {
         setSchedule(response.data);
       })
@@ -25,9 +27,13 @@ const UploadTrack = () => {
   };
 
   const fetchTracks = () => {
-    axios.get('http://localhost:5000/tracks')
+    axios.get(`http://localhost:5000/radio/${id}/tracks`)
       .then(response => {
-        setTracks(response.data);
+        const trackFiles = response.data.map(file => ({
+          original: file,
+          display: file.replace(`${id}-`, '')
+        }));
+        setTracks(trackFiles);
       })
       .catch(error => {
         console.error('There was an error fetching the tracks!', error);
@@ -42,19 +48,31 @@ const UploadTrack = () => {
     const formData = new FormData();
     formData.append('file', file);
 
-    axios.post('http://localhost:5000/upload', formData)
+    axios.post(`http://localhost:5000/radio/${id}/upload`, formData)
       .then(response => {
         setMessage('File uploaded successfully');
-        fetchSchedule(); // Refresh schedule after upload
+        fetchTracks(); // Refresh tracks after upload
       })
       .catch(error => {
         setMessage('File upload failed');
       });
   };
 
-  const handleDelete = (index) => {
+  const handleDeleteTrack = (track) => {
+    axios.delete(`http://localhost:5000/radio/${id}/tracks/${track}`)
+      .then(response => {
+        setMessage('Track deleted successfully');
+        fetchTracks(); // Refresh tracks after deletion
+      })
+      .catch(error => {
+        setMessage('Failed to delete track');
+        console.error('Error deleting track:', error);
+      });
+  };
+
+  const handleDeleteSchedule = (index) => {
     const updatedSchedule = schedule.filter((_, i) => i !== index);
-    axios.post('http://localhost:5000/schedule', updatedSchedule)
+    axios.post(`http://localhost:5000/radio/${id}/schedule`, updatedSchedule)
       .then(response => {
         setSchedule(updatedSchedule);
         setMessage('Schedule updated successfully');
@@ -69,10 +87,9 @@ const UploadTrack = () => {
     const newSchedule = { track: newTrack, time: newTime };
     const updatedSchedule = [...schedule, newSchedule];
     setSchedule(updatedSchedule);
-    axios.post('http://localhost:5000/schedule', updatedSchedule)
+    axios.post(`http://localhost:5000/radio/${id}/schedule`, updatedSchedule)
       .then(response => {
         console.log('Schedule saved to server');
-        fetchSchedule(); // Refresh schedule after adding new track
       })
       .catch(error => {
         console.error('Error saving schedule to server', error);
@@ -88,30 +105,40 @@ const UploadTrack = () => {
       <button onClick={handleUpload}>Upload</button>
       <p>{message}</p>
 
-      <h2>Schedule Tracks</h2>
-      <input
-        type="text"
-        placeholder="Enter time (HH:MM:SS)"
-        value={newTime}
-        onChange={(e) => setNewTime(e.target.value)}
-      />
-      <select value={newTrack} onChange={(e) => setNewTrack(e.target.value)}>
-        <option value="">Select Track</option>
+      <h2>Uploaded Tracks</h2>
+      <ul>
         {tracks.map((track, index) => (
-          <option key={index} value={track}>{track}</option>
+          <li key={index}>
+            {track.display}
+            <button onClick={() => handleDeleteTrack(track.original)}>Delete</button>
+          </li>
         ))}
-      </select>
-      <button onClick={handleAddTrack}>Add</button>
+      </ul>
 
       <h2>Scheduled Tracks</h2>
       <ul>
         {schedule.map((item, index) => (
           <li key={index}>
-            {item.time} - {item.track}
-            <button onClick={() => handleDelete(index)}>Delete</button>
+            {item.time} - {item.track.replace(`${id}-`, '')}
+            <button onClick={() => handleDeleteSchedule(index)}>Delete</button>
           </li>
         ))}
       </ul>
+
+      <h2>Add Track to Schedule</h2>
+      <input 
+        type="text" 
+        placeholder="Enter time (HH:MM:SS)" 
+        value={newTime} 
+        onChange={(e) => setNewTime(e.target.value)} 
+      />
+      <select value={newTrack} onChange={(e) => setNewTrack(e.target.value)}>
+        <option value="">Select Track</option>
+        {tracks.map((track, index) => (
+          <option key={index} value={track.original}>{track.display}</option>
+        ))}
+      </select>
+      <button onClick={handleAddTrack}>Add</button>
     </div>
   );
 };

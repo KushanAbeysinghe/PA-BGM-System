@@ -3,7 +3,9 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs-extra');
 const cors = require('cors');
-const { addDays, differenceInDays } = require('date-fns'); // Use date-fns for date calculations
+const { addDays, differenceInDays } = require('date-fns');
+const schedule = require('node-schedule');
+const emailjs = require('emailjs-com');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -12,7 +14,7 @@ const upload = multer({ dest: 'uploads/' });
 
 app.use(express.json());
 app.use(cors());
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));  // Serve static files from the uploads directory
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'))); // Serve static files from the uploads directory
 
 const profilesFile = path.join(__dirname, 'radioProfiles.json');
 const schedulesFile = path.join(__dirname, 'radioSchedules.json');
@@ -60,24 +62,30 @@ app.get('/radiostreams/:id', (req, res) => {
   }
 });
 
-app.post('/radiostreams', async (req, res) => {
-  const { name, url, subscriptionPlan, companyName } = req.body;
+app.post('/radiostreams', upload.single('logo'), async (req, res) => {
+  const { name, url, subscriptionPlan, companyName, email } = req.body;
+  const logo = req.file ? req.file.filename : null;
   const createdDate = new Date();
   const expirationDate = addDays(createdDate, getSubscriptionDays(subscriptionPlan));
-  const newStream = { id: Date.now(), name, url, companyName, blocked: false, alarmBlocked: true, subscriptionPlan, createdDate, expirationDate }; // Add subscription details
+  const newStream = { id: Date.now(), name, url, companyName, email, logo, blocked: false, alarmBlocked: true, subscriptionPlan, createdDate, expirationDate }; // Add subscription details
   radioStreams.push(newStream);
   await saveProfiles();
   res.send(newStream);
 });
 
-app.put('/radiostreams/:id', async (req, res) => {
+app.put('/radiostreams/:id', upload.single('logo'), async (req, res) => {
   const { id } = req.params;
-  const { name, url, subscriptionPlan, companyName } = req.body;
+  const { name, url, subscriptionPlan, companyName, email } = req.body;
+  const logo = req.file ? req.file.filename : null;
   const stream = radioStreams.find(stream => stream.id == id);
   if (stream) {
     stream.name = name;
     stream.url = url;
     stream.companyName = companyName;
+    stream.email = email;
+    if (logo) {
+      stream.logo = logo;
+    }
     if (subscriptionPlan && subscriptionPlan !== stream.subscriptionPlan) {
       const now = new Date();
       const daysToAdd = getSubscriptionDays(subscriptionPlan);
@@ -146,11 +154,36 @@ app.put('/radiostreams/:id/unblock-alarm', async (req, res) => {
 
 app.delete('/radiostreams/:id', async (req, res) => {
   const { id } = req.params;
-  radioStreams = radioStreams.filter(stream => stream.id != id);
-  delete schedules[id];
-  await saveProfiles();
-  await saveSchedules();
-  res.send('Radio stream deleted');
+  const stream = radioStreams.find(stream => stream.id == id);
+
+  if (stream) {
+    // Remove profile image
+    if (stream.logo) {
+      const logoPath = path.join(__dirname, 'uploads', stream.logo);
+      if (fs.existsSync(logoPath)) {
+        fs.unlinkSync(logoPath);
+      }
+    }
+
+    // Remove profile tracks
+    const trackPath = path.join(__dirname, 'uploads', 'tracks');
+    const files = fs.readdirSync(trackPath);
+    files.forEach(file => {
+      if (file.startsWith(`${id}-`)) {
+        fs.unlinkSync(path.join(trackPath, file));
+      }
+    });
+
+    // Remove profile from radioStreams
+    radioStreams = radioStreams.filter(stream => stream.id != id);
+    delete schedules[id];
+    await saveProfiles();
+    await saveSchedules();
+
+    res.send('Radio stream and associated files deleted');
+  } else {
+    res.status(404).send('Radio stream not found');
+  }
 });
 
 app.post('/radio/:id/upload', upload.single('file'), (req, res) => {
@@ -161,18 +194,20 @@ app.post('/radio/:id/upload', upload.single('file'), (req, res) => {
   }
 
   // Move the file to a permanent location
-  const targetPath = path.join(__dirname, 'uploads', file.originalname);
+  const targetPath = path.join(__dirname, 'uploads', 'tracks', `${radioId}-${file.originalname}`);
   fs.renameSync(file.path, targetPath);
 
-  res.send({ fileName: file.originalname });
+  res.send({ fileName: `${radioId}-${file.originalname}` });
 });
 
 app.get('/radio/:id/tracks', (req, res) => {
-  fs.readdir(path.join(__dirname, 'uploads'), (err, files) => {
+  const radioId = req.params.id;
+  fs.readdir(path.join(__dirname, 'uploads', 'tracks'), (err, files) => {
     if (err) {
       return res.status(500).send('Error reading tracks directory.');
     }
-    res.send(files);
+    const filteredFiles = files.filter(file => file.startsWith(`${radioId}-`));
+    res.send(filteredFiles);
   });
 });
 
@@ -204,6 +239,37 @@ const getSubscriptionDays = (plan) => {
       return 0;
   }
 };
+
+// EmailJS configuration
+const EMAILJS_SERVICE_ID = 'your_service_id';
+const EMAILJS_TEMPLATE_ID = 'your_template_id';
+const EMAILJS_USER_ID = 'your_user_id';
+
+const sendEmailNotification = (email, name) => {
+  const templateParams = {
+    to_email: email,
+    to_name: name,
+  };
+
+  emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams, EMAILJS_USER_ID)
+    .then(response => {
+      console.log('Email sent successfully:', response.status, response.text);
+    })
+    .catch(err => {
+      console.error('Error sending email:', err);
+    });
+};
+
+// Schedule a job to run every day at midnight
+schedule.scheduleJob('0 0 * * *', () => {
+  const now = new Date();
+  radioStreams.forEach(stream => {
+    const daysLeft = differenceInDays(new Date(stream.expirationDate), now);
+    if (daysLeft === 2) {
+      sendEmailNotification(stream.email, stream.name);
+    }
+  });
+});
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
