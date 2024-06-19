@@ -61,10 +61,10 @@ app.get('/radiostreams/:id', (req, res) => {
 });
 
 app.post('/radiostreams', async (req, res) => {
-  const { name, url, subscriptionPlan } = req.body;
+  const { name, url, subscriptionPlan, companyName } = req.body;
   const createdDate = new Date();
   const expirationDate = addDays(createdDate, getSubscriptionDays(subscriptionPlan));
-  const newStream = { id: Date.now(), name, url, blocked: false, alarmBlocked: true, subscriptionPlan, createdDate, expirationDate }; // Add subscription details
+  const newStream = { id: Date.now(), name, url, companyName, blocked: false, alarmBlocked: true, subscriptionPlan, createdDate, expirationDate }; // Add subscription details
   radioStreams.push(newStream);
   await saveProfiles();
   res.send(newStream);
@@ -72,11 +72,12 @@ app.post('/radiostreams', async (req, res) => {
 
 app.put('/radiostreams/:id', async (req, res) => {
   const { id } = req.params;
-  const { name, url, subscriptionPlan } = req.body;
+  const { name, url, subscriptionPlan, companyName } = req.body;
   const stream = radioStreams.find(stream => stream.id == id);
   if (stream) {
     stream.name = name;
     stream.url = url;
+    stream.companyName = companyName;
     if (subscriptionPlan && subscriptionPlan !== stream.subscriptionPlan) {
       const now = new Date();
       const daysToAdd = getSubscriptionDays(subscriptionPlan);

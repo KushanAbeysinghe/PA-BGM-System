@@ -6,12 +6,13 @@ const AddProfile = () => {
   const [name, setName] = useState('');
   const [url, setUrl] = useState('');
   const [subscriptionPlan, setSubscriptionPlan] = useState('1 Day'); // Default to 1 Day
+  const [companyName, setCompanyName] = useState('');
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.post('http://localhost:5000/radiostreams', { name, url, subscriptionPlan });
+      await axios.post('http://localhost:5000/radiostreams', { name, url, subscriptionPlan, companyName });
       navigate('/');
     } catch (error) {
       console.error('There was an error creating the radio stream!', error);
@@ -29,6 +30,10 @@ const AddProfile = () => {
         <div>
           <label>URL:</label>
           <input type="text" value={url} onChange={(e) => setUrl(e.target.value)} required />
+        </div>
+        <div>
+          <label>Company Name:</label>
+          <input type="text" value={companyName} onChange={(e) => setCompanyName(e.target.value)} required />
         </div>
         <div>
           <label>Subscription Plan:</label>
