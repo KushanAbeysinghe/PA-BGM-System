@@ -54,7 +54,7 @@ const RadioProfile = () => {
       });
   };
 
-  const handleDelete = (index) => {
+  const handleDeleteScheduleItem = (index) => {
     const updatedSchedule = schedule.filter((_, i) => i !== index);
     axios.post(`http://localhost:5000/radio/${id}/schedule`, updatedSchedule)
       .then(response => {
@@ -64,6 +64,19 @@ const RadioProfile = () => {
       .catch(error => {
         setMessage('Failed to update schedule');
         console.error('Error updating schedule:', error);
+      });
+  };
+
+  const handleDeleteTrack = (track) => {
+    const trackName = track.split('-').slice(1).join('-'); // Extract the track name after the first hyphen
+    axios.delete(`http://localhost:5000/radio/${id}/tracks/${trackName}`)
+      .then(response => {
+        setMessage('Track deleted successfully');
+        fetchTracks(); // Refresh tracks after deletion
+      })
+      .catch(error => {
+        setMessage('Failed to delete track');
+        console.error('Error deleting track:', error);
       });
   };
 
@@ -100,7 +113,7 @@ const RadioProfile = () => {
       <select value={newTrack} onChange={(e) => setNewTrack(e.target.value)}>
         <option value="">Select Track</option>
         {tracks.map((track, index) => (
-          <option key={index} value={track}>{track}</option>
+          <option key={index} value={track}>{track.split('-').slice(1).join('-')}</option>
         ))}
       </select>
       <button onClick={handleAddTrack}>Add</button>
@@ -110,7 +123,17 @@ const RadioProfile = () => {
         {schedule.map((item, index) => (
           <li key={index}>
             {item.time} - {item.track}
-            <button onClick={() => handleDelete(index)}>Delete</button>
+            <button onClick={() => handleDeleteScheduleItem(index)}>Delete</button>
+          </li>
+        ))}
+      </ul>
+
+      <h2>Uploaded Tracks</h2>
+      <ul>
+        {tracks.map((track, index) => (
+          <li key={index}>
+            {track.split('-').slice(1).join('-')}
+            <button onClick={() => handleDeleteTrack(track)}>Delete</button>
           </li>
         ))}
       </ul>
