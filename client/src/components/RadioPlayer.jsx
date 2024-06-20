@@ -42,27 +42,11 @@ const RadioPlayer = () => {
     if (!profile) return;
 
     const audioElement = audioRef.current;
-
-    const playStream = () => {
-      if (!audioElement) return;
-
-      setIsLoading(true);
-      audioElement.src = profile.url;
-      audioElement.load();
-      audioElement.play().then(() => {
-        setIsLoading(false);
-      }).catch(error => {
-        console.error('Error attempting to play the stream:', error);
-        setIsLoading(true);
-        setErrorMessage('Radio is not found');
-        setTimeout(playStream, 5000);
-      });
-    };
+    if (!audioElement) return;
 
     const handleAudioError = () => {
       console.error('Stream error, attempting to reload the stream...');
       setErrorMessage('Radio is not found');
-      playStream();
     };
 
     const handleOnline = () => {
@@ -75,8 +59,6 @@ const RadioPlayer = () => {
       console.log('Internet connection lost.');
       setIsOnline(false);
     };
-
-    playStream();
 
     audioElement.addEventListener('error', handleAudioError);
     window.addEventListener('online', handleOnline);
@@ -122,31 +104,37 @@ const RadioPlayer = () => {
   };
 
   const handlePlay = () => {
-    if (!profile.blocked) {
-      audioRef.current.play().catch(error => {
-        console.error('Error playing the stream:', error);
-        setErrorMessage('Radio is not found');
-      });
-    }
+    if (!profile || profile.blocked) return;
+
+    const audioElement = audioRef.current;
+    setIsLoading(true);
+    audioElement.src = profile.url;
+    audioElement.load();
+    audioElement.play().then(() => {
+      setIsLoading(false);
+    }).catch(error => {
+      console.error('Error attempting to play the stream:', error);
+      setIsLoading(true);
+      setErrorMessage('Radio is not found');
+    });
   };
 
   const handleMute = () => {
+    if (!audioRef.current) return;
     audioRef.current.muted = !audioRef.current.muted;
     setIsMuted(!isMuted);
   };
 
   const handleVolumeChange = (event) => {
     const newVolume = event.target.value;
+    if (!audioRef.current) return;
     audioRef.current.volume = newVolume;
     setVolume(newVolume);
   };
 
   const playScheduledTrack = (track) => {
-    if (!profile || profile.alarmBlocked) {
-      return;
-    }
+    if (!profile || profile.alarmBlocked || !audioRef.current || !trackRef.current) return;
 
-    console.log('Attempting to play track:', track);
     fadeOut(audioRef.current, () => {
       trackRef.current.src = `http://localhost:5000/uploads/tracks/${track}`;
       console.log('Track source set to:', trackRef.current.src);
@@ -255,7 +243,7 @@ const RadioPlayer = () => {
   }
 
   if (profile.blocked) {
-    return <div>This radio stream is currently blocked.</div>;
+    return <div>Your profile is blocked.</div>;
   }
 
   return (
@@ -307,6 +295,9 @@ const RadioPlayer = () => {
           </ul>
         </>
       )}
+      <Link to={`/localplayer/${id}`}>
+        <button>Go to Local Player</button>
+      </Link>
     </div>
   );
 };
