@@ -1,0 +1,89 @@
+/* Dashboard.css */
+.dashboard-container {
+  background-color: #f8f9fa;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+}
+
+.dashboard-container h2 {
+  color: #007bff;
+  margin-bottom: 20px;
+}
+
+.card {
+  border: none;
+  border-radius: 8px;
+}
+
+.list-group-item {
+  background-color: #ffffff;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  transition: transform 0.2s;
+}
+
+.list-group-item:hover {
+  transform: scale(1.02);
+}
+
+.btn-group {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.btn-group .btn {
+  margin: 5px;
+}
+
+.text-primary {
+  color: #007bff !important;
+}
+
+.text-secondary {
+  color: #6c757d !important;
+}
+
+/* Additional CSS for hover effect and button styling */
+.btn:hover {
+  opacity: 0.8;
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.card .card-header {
+  background-color: #007bff;
+  color: #ffffff;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.card .card-header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.list-group-item .btn-group .btn {
+  margin-right: 0.5rem;
+}
+
+.list-group-item .btn-group .btn:last-child {
+  margin-right: 0;
+}
+
+.list-group-item .btn-group .btn-warning {
+  background-color: #ffc107;
+  border-color: #ffc107;
+}
+
+.list-group-item .btn-group .btn-info {
+  background-color: #17a2b8;
+  border-color: #17a2b8;
+}
+
+.list-group-item .btn-group .btn-secondary {
+  background-color: #6c757d;
+  border-color: #6c757d;
+}

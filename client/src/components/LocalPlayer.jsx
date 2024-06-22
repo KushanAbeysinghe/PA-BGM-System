@@ -1,7 +1,9 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { differenceInDays } from 'date-fns';
+import { differenceInHours } from 'date-fns';
+import Footer from './Footer';
+import Header from './Header';
 
 const LocalPlayer = () => {
   const { id } = useParams();
@@ -50,7 +52,7 @@ const LocalPlayer = () => {
 
   const fetchProfile = async () => {
     try {
-      const response = await axios.get(`http://localhost:5000/radiostreams/${id}`);
+      const response = await axios.get(`/radiostreams/${id}`);
       setProfile(response.data);
     } catch (error) {
       console.error('There was an error fetching the profile!', error);
@@ -60,7 +62,7 @@ const LocalPlayer = () => {
 
   const fetchSchedule = async () => {
     try {
-      const response = await axios.get(`http://localhost:5000/radio/${id}/schedule`);
+      const response = await axios.get(`/radio/${id}/schedule`);
       setSchedule(response.data);
     } catch (error) {
       console.error('There was an error fetching the schedule!', error);
@@ -120,7 +122,7 @@ const LocalPlayer = () => {
     if (!profile || profile.alarmBlocked || !localAudioRef.current || !alarmAudioRef.current) return;
 
     fadeOut(localAudioRef.current, () => {
-      axios.get(`http://localhost:5000/uploads/tracks/${track}`, { responseType: 'blob' })
+      axios.get(`/uploads/tracks/${track}`, { responseType: 'blob' })
         .then(response => {
           const url = URL.createObjectURL(response.data);
           alarmAudioRef.current.src = url;
@@ -191,7 +193,7 @@ const LocalPlayer = () => {
     const newSchedule = { track: newTrack, time: newTime };
     const updatedSchedule = [...schedule, newSchedule];
     setSchedule(updatedSchedule);
-    axios.post(`http://localhost:5000/radio/${id}/schedule`, updatedSchedule)
+    axios.post(`/radio/${id}/schedule`, updatedSchedule)
       .then(response => {
         console.log('Schedule saved to server');
       })
@@ -228,10 +230,20 @@ const LocalPlayer = () => {
         subscriptionDays = 0;
     }
 
-    const daysPassed = differenceInDays(now, created);
-    return subscriptionDays - daysPassed;
-  };
+    const hoursPassed = differenceInHours(now, created);
+    const daysPassed = Math.ceil(hoursPassed / 24);
+    const daysLeft = subscriptionDays - daysPassed;
 
+    console.log(`Current Date: ${now}`);
+    console.log(`Created Date: ${created}`);
+    console.log(`Expiration Date: ${expiration}`);
+    console.log(`Hours Passed: ${hoursPassed}`);
+    console.log(`Days Passed (ceil): ${daysPassed}`);
+    console.log(`Subscription Days: ${subscriptionDays}`);
+    console.log(`Days Left: ${daysLeft}`);
+
+    return daysLeft;
+  };
 
   const isNextToPlay = (scheduledTime) => {
     const now = new Date();
@@ -253,88 +265,203 @@ const LocalPlayer = () => {
   }
 
   if (profile.blocked) {
-    return <div>Your profile is blocked.</div>;
+    return (
+      <div className="container vh-100 d-flex flex-column align-items-center justify-content-center">
+        <style jsx>{`
+          .blocked-message {
+            color: red;
+            font-weight: bold;
+            font-size: 24px;
+          }
+        `}</style>
+        <div className="blocked-message">Your profile is blocked.</div>
+        <div>{profile.companyName}</div>
+      </div>
+    );
   }
 
   return (
-    <div className="local-player">
-      <h1>Local MP3 Player</h1>
-      <input
-        type="file"
-        webkitdirectory="true"
-        multiple
-        onChange={handleLocalFiles}
-        accept=".mp3"
-      />
-      <audio ref={localAudioRef} preload="none" style={{ display: 'block' }}></audio>
-      <audio ref={alarmAudioRef} preload="none" style={{ display: 'none' }}></audio>
-      <button onClick={handlePlay}>Play</button>
-      <button onClick={handlePause}>Pause</button>
-      <button onClick={handleMute}>{isMuted ? 'Unmute' : 'Mute'}</button>
-      <input
-        type="range"
-        min="0"
-        max="1"
-        step="0.01"
-        value={volume}
-        onChange={handleVolumeChange}
-      />
-      {errorMessage && <p>{errorMessage}</p>}
-
-      <h2>Current Time: {currentTime}</h2>
-
-      {profile && (
-        <div className="profile-info">
-          <h2>{profile.name}</h2>
-          <h3>{profile.companyName}</h3>
-          {profile.logo && <img src={`http://localhost:5000/uploads/${profile.logo}`} alt="Company Logo" />}
-          <p>Subscription Plan: {profile.subscriptionPlan}</p>
-         <p>Days left to expire: {getDaysLeft(profile.expirationDate, profile.createdDate, profile.subscriptionPlan)}</p>
+    <div>
+      <Header />
+      <div className="d-flex flex-column vh-100">
+        <div className="container flex-grow-1 d-flex flex-column">
+          <style jsx>{`
+            .local-player {
+              background-color: white;
+              border-radius: 8px;
+              padding: 20px;
+              box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+              width: 450px;
+            }
+            .local-player h1 {
+              font-size: 24px;
+              font-weight: bold;
+            }
+            .local-player img {
+              max-width: 100%;
+              height: auto;
+              padding: 10px;
+              box-sizing: border-box;
+            }
+            .local-player .form-control-range {
+              width: 100%;
+            }
+            .local-player .btn {
+              width: 100%;
+            }
+            .local-player .profile-info h2 {
+              margin-top: 20px;
+              font-size: 18px;
+              font-weight: bold;
+            }
+            .local-player .profile-info p {
+              font-size: 16px;
+            }
+            .local-player .list-group-item {
+              margin-top: 10px;
+              background-color: #f8f9fa;
+              border: 1px solid #dee2e6;
+              transition: background-color 0.3s, transform 0.3s;
+            }
+            .local-player .list-group-item:hover {
+              background-color: #e9ecef;
+              transform: scale(1.02);
+            }
+            .local-player .list-group-item.active {
+              background-color: #007bff;
+              color: white;
+            }
+            .local-player .list-group-item:last-child {
+              margin-bottom: 20px;
+            }
+            .action-buttons {
+              position: absolute;
+              top: 10px;
+              right: 10px;
+              display: flex;
+              gap: 10px;
+            }
+            .header {
+              text-align: center;
+              margin-bottom: 20px;
+            }
+            .header h1 {
+              font-size: 3rem;
+              margin-top: 50px;
+            }
+            .header h2 {
+              font-size: 1.5rem;
+              margin: 0;
+            }
+            .subscription-info {
+              text-align: center;
+              font-size: 1rem;
+              margin-top: 10px;
+            }
+            .card {
+              width: 100%;
+              background-color: #f8f9fa;
+              border: 1px solid #dee2e6;
+              box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+            }
+          `}</style>
+          <div className="action-buttons">
+            <Link to={`/radio/${id}/profile`}>
+              <button className="btn btn-primary">Go to Profile</button>
+            </Link>
+            <Link to={`/radio/${id}`}>
+              <button className="btn btn-info">Go to Radio Player</button>
+            </Link>
+            <button className="btn btn-secondary" onClick={handleLogout}>Logout</button>
+          </div>
+          <div className="header">
+            <h1>{profile.name}</h1>
+            <h2>{profile.companyName}</h2>
+            <div className="subscription-info">
+              <p>Subscription Plan: {profile.subscriptionPlan}<br></br>
+              Days left to expire: {getDaysLeft(profile.expirationDate, profile.createdDate, profile.subscriptionPlan)}</p>
+            </div>
+          </div>
+          <div className="row flex-grow-1 align-items-start">
+            <div className="col-md-4 d-flex justify-content-center">
+              <div className="local-player text-center">
+                {profile.logo && <img src={`/uploads/${profile.logo}`} alt="Company Logo" className="img-fluid mb-3" />}
+                <audio ref={localAudioRef} preload="none" style={{ display: 'block' }}></audio>
+                <audio ref={alarmAudioRef} preload="none" style={{ display: 'none' }}></audio>
+                <div className="mb-3">
+                  <button className="btn btn-danger btn-block mb-2" onClick={handlePlay}>Play</button>
+                  <button className="btn btn-danger btn-block mb-2" onClick={handlePause}>Pause</button>
+                  <button className="btn btn-danger btn-block mb-2" onClick={handleMute}>{isMuted ? 'Unmute' : 'Mute'}</button>
+                </div>
+                <div className="mb-3">
+                  <input
+                    type="range"
+                    className="form-control-range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value={volume}
+                    onChange={handleVolumeChange}
+                  />
+                </div>
+                <input
+                  type="file"
+                  webkitdirectory="true"
+                  multiple
+                  onChange={handleLocalFiles}
+                  accept=".mp3"
+                  className="form-control"
+                />
+                {errorMessage && <p>{errorMessage}</p>}
+              </div>
+            </div>
+            <div className="col-md-4 d-flex justify-content-center">
+              {profile.alarmBlocked ? (
+                <div className="card text-center p-4">
+                  <div className="card-header">
+                    <h2>Scheduled Tracks</h2>
+                  </div>
+                  <p style={{ color: 'red', fontWeight: 'bold' }}>The alarm system for this profile is currently blocked.</p>
+                </div>
+              ) : (
+                <div className="card text-center p-4">
+                  <div className="card-header">
+                    <h2>Scheduled Tracks</h2>
+                  </div>
+                  <ul className="list-group list-group-flush">
+                    {schedule.map((item, index) => (
+                      <li key={index} className={`list-group-item d-flex justify-content-between align-items-center ${isNextToPlay(item.time) ? 'active' : ''}`}>
+                        <span className="dot" style={{ height: '10px', width: '10px', backgroundColor: '#ff0000', borderRadius: '50%', display: 'inline-block', marginRight: '10px' }}></span>
+                        {item.time} - {item.track.split('-').slice(1).join('-')}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+            <div className="col-md-4 d-flex justify-content-center">
+              <div className="card text-center p-4">
+                <div className="card-header">
+                  <h2>Local Tracks</h2>
+                </div>
+                <ul className="list-group list-group-flush">
+                  {localTracks.map((track, index) => (
+                    <li
+                      key={index}
+                      onClick={() => setCurrentLocalTrackIndex(index)}
+                      className={`list-group-item ${index === currentLocalTrackIndex ? 'active' : ''}`}
+                    >
+                      {track.name}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
         </div>
-      )}
-
-      <Link to={`/radio/${id}/profile`}>
-        <button disabled={profile.alarmBlocked}>Go to Profile</button>
-      </Link>
-
-      <button onClick={handleLogout}>Logout</button>
-
-      {profile.alarmBlocked ? (
-        <p>The alarm system for this profile is currently blocked.</p>
-      ) : (
-        <>
-          <h2>Scheduled Tracks</h2>
-          <ul>
-            {schedule.map((item, index) => {
-              const trackName = item.track.replace(`${id}-`, ''); // Remove the profile ID from the track name
-              return (
-                <li key={index} style={isNextToPlay(item.time) ? { fontWeight: 'bold' } : {}}>
-                  {item.time} - {trackName}
-                </li>
-              );
-            })}
-          </ul>
-        </>
-      )}
-
-      <div>
-        <h2>Local Tracks</h2>
-        <ul>
-          {localTracks.map((track, index) => (
-            <li
-              key={index}
-              onClick={() => setCurrentLocalTrackIndex(index)}
-              style={index === currentLocalTrackIndex ? { fontWeight: 'bold' } : {}}
-            >
-              {track.name}
-            </li>
-          ))}
-        </ul>
+        <br></br>
+        <Footer />
       </div>
-
-      <Link to={`/radio/${id}`}>
-        <button>Go to Radio Player</button>
-      </Link>
     </div>
   );
 };

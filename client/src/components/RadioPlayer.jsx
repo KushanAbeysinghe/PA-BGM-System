@@ -1,7 +1,9 @@
 import React, { useRef, useState, useEffect } from 'react';
 import axios from 'axios';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { differenceInDays } from 'date-fns';
+import { differenceInHours } from 'date-fns';
+import Footer from './Footer';
+import Header from './Header';
 
 const RadioPlayer = () => {
   const { id } = useParams();
@@ -19,6 +21,7 @@ const RadioPlayer = () => {
   const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString('en-GB', { hour12: false }));
   const [profile, setProfile] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
+  const [userInteracted, setUserInteracted] = useState(false); // Track user interaction
 
   useEffect(() => {
     fetchRadioProfile();
@@ -46,7 +49,6 @@ const RadioPlayer = () => {
 
     const handleAudioError = () => {
       console.error('Stream error, attempting to reload the stream...');
-      setErrorMessage('Radio is not found');
     };
 
     const handleOnline = () => {
@@ -76,7 +78,7 @@ const RadioPlayer = () => {
 
   const fetchRadioProfile = async () => {
     try {
-      const response = await axios.get(`http://localhost:5000/radiostreams/${id}`);
+      const response = await axios.get(`/radiostreams/${id}`);
       setProfile(response.data);
     } catch (error) {
       console.error('There was an error fetching the radio profile!', error);
@@ -84,7 +86,7 @@ const RadioPlayer = () => {
   };
 
   const fetchTracks = () => {
-    axios.get(`http://localhost:5000/radio/${id}/tracks`)
+    axios.get(`/radio/${id}/tracks`)
       .then(response => {
         setTracks(response.data);
       })
@@ -94,7 +96,7 @@ const RadioPlayer = () => {
   };
 
   const fetchSchedule = () => {
-    axios.get(`http://localhost:5000/radio/${id}/schedule`)
+    axios.get(`/radio/${id}/schedule`)
       .then(response => {
         setSchedule(response.data);
       })
@@ -115,8 +117,12 @@ const RadioPlayer = () => {
     }).catch(error => {
       console.error('Error attempting to play the stream:', error);
       setIsLoading(true);
-      setErrorMessage('Radio is not found');
     });
+  };
+
+  const handleUserInteraction = () => {
+    setUserInteracted(true);
+    handlePlay(); // Automatically play when the user interacts
   };
 
   const handleMute = () => {
@@ -136,7 +142,7 @@ const RadioPlayer = () => {
     if (!profile || profile.alarmBlocked || !audioRef.current || !trackRef.current) return;
 
     fadeOut(audioRef.current, () => {
-      trackRef.current.src = `http://localhost:5000/uploads/tracks/${track}`;
+      trackRef.current.src = `/uploads/tracks/${track}`;
       console.log('Track source set to:', trackRef.current.src);
       trackRef.current.load();
       trackRef.current.oncanplaythrough = () => {
@@ -182,7 +188,7 @@ const RadioPlayer = () => {
     const newSchedule = { track: newTrack, time: newTime };
     const updatedSchedule = [...schedule, newSchedule];
     setSchedule(updatedSchedule);
-    axios.post(`http://localhost:5000/radio/${id}/schedule`, updatedSchedule)
+    axios.post(`/radio/${id}/schedule`, updatedSchedule)
       .then(response => {
         console.log('Schedule saved to server');
       })
@@ -219,8 +225,19 @@ const RadioPlayer = () => {
         subscriptionDays = 0;
     }
 
-    const daysPassed = differenceInDays(now, created);
-    return subscriptionDays - daysPassed;
+    const hoursPassed = differenceInHours(now, created);
+    const daysPassed = Math.ceil(hoursPassed / 24);
+    const daysLeft = subscriptionDays - daysPassed;
+
+    console.log(`Current Date: ${now}`);
+    console.log(`Created Date: ${created}`);
+    console.log(`Expiration Date: ${expiration}`);
+    console.log(`Hours Passed: ${hoursPassed}`);
+    console.log(`Days Passed (ceil): ${daysPassed}`);
+    console.log(`Subscription Days: ${subscriptionDays}`);
+    console.log(`Days Left: ${daysLeft}`);
+
+    return daysLeft;
   };
 
   const isNextToPlay = (scheduledTime) => {
@@ -243,61 +260,179 @@ const RadioPlayer = () => {
   }
 
   if (profile.blocked) {
-    return <div>Your profile is blocked.</div>;
+    return (
+      <div className="container vh-100 d-flex flex-column align-items-center justify-content-center">
+        <style>{`
+          .blocked-message {
+            color: red;
+            font-weight: bold;
+            font-size: 24px;
+          }
+        `}</style>
+        <div className="blocked-message">Your profile is blocked.</div>
+        <div>{profile.companyName}</div>
+      </div>
+    );
   }
 
   return (
-    <div className="radio-player">
-      <h1>Online Radio Player</h1>
-      <audio ref={audioRef} preload="none" style={{ display: 'none' }}></audio>
-      <audio ref={trackRef} preload="none" style={{ display: 'none' }}></audio>
-      <button onClick={handlePlay}>Live</button>
-      <button onClick={handleMute}>{isMuted ? 'Unmute' : 'Mute'}</button>
-      <input
-        type="range"
-        min="0"
-        max="1"
-        step="0.01"
-        value={volume}
-        onChange={handleVolumeChange}
-      />
-      {isLoading && <p>Connecting...</p>}
-      {!isOnline && <p>No connection.</p>}
-      {errorMessage && <p>{errorMessage}</p>}
-
-      <h2>Current Time: {currentTime}</h2>
-
-      <div className="profile-info">
-        <h2>{profile.name}</h2>
-        <h3>{profile.companyName}</h3>
-        {profile.logo && <img src={`http://localhost:5000/uploads/${profile.logo}`} alt="Company Logo" />}
-        <p>Subscription Plan: {profile.subscriptionPlan}</p>
-        <p>Days left to expire: {getDaysLeft(profile.expirationDate, profile.createdDate, profile.subscriptionPlan)}</p>
+    <div>
+      <Header />
+      <div className="d-flex flex-column vh-100">
+        <div className="container flex-grow-1 d-flex flex-column">
+          <style>{`
+            .radio-player {
+              background-color: white;
+              border-radius: 8px;
+              padding: 20px;
+              box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+              width: 450px;
+            }
+            .radio-player h1 {
+              font-size: 24px;
+              font-weight: bold;
+            }
+            .radio-player img {
+              max-width: 100%;
+              height: auto;
+              padding: 10px;
+              box-sizing: border-box;
+            }
+            .radio-player .form-control-range {
+              width: 100%;
+            }
+            .radio-player .btn {
+              width: 100%;
+            }
+            .radio-player .profile-info h2 {
+              margin-top: 20px;
+              font-size: 18px;
+              font-weight: bold;
+            }
+            .radio-player .profile-info p {
+              font-size: 16px;
+            }
+            .radio-player .list-group-item {
+              margin-top: 10px;
+              background-color: #f8f9fa;
+              border: 1px solid #dee2e6;
+              transition: background-color 0.3s, transform 0.3s;
+            }
+            .radio-player .list-group-item:hover {
+              background-color: #e9ecef;
+              transform: scale(1.02);
+            }
+            .radio-player .list-group-item.active {
+              background-color: #007bff;
+              color: white;
+            }
+            .action-buttons {
+              position: absolute;
+              top: 10px;
+              right: 10px;
+              display: flex;
+              gap: 10px;
+            }
+            .header {
+              text-align: center;
+              margin-bottom: 20px;
+            }
+            .header h1 {
+              font-size: 3rem;
+              margin-top: 50px;
+            }
+            .header h2 {
+              font-size: 1.5rem;
+              margin: 0;
+            }
+            .subscription-info {
+              text-align: center;
+              font-size: 1rem;
+              margin-top: 10px;
+            }
+            .card {
+              width: 100%;
+              background-color: #f8f9fa;
+              border: 1px solid #dee2e6;
+              box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+            }
+          `}</style>
+          <div className="action-buttons">
+            {profile.alarmBlocked ? (
+              <button className="btn btn-primary" disabled>Go to Profile</button>
+            ) : (
+              <Link to={`/radio/${id}/profile`}>
+                <button className="btn btn-primary">Go to Profile</button>
+              </Link>
+            )}
+            <Link to={`/localplayer/${id}`}>
+              <button className="btn btn-info">Go to Local Player</button>
+            </Link>
+            <button className="btn btn-secondary" onClick={handleLogout}>Logout</button>
+          </div>
+          <div className="header">
+            <h1>{profile.name}</h1>
+            <h2>{profile.companyName}</h2>
+            <div className="subscription-info">
+              <p>Subscription Plan: {profile.subscriptionPlan}<br />
+              Days left to expire: {getDaysLeft(profile.expirationDate, profile.createdDate, profile.subscriptionPlan)}</p>
+            </div>
+          </div>
+          <div className="row flex-grow-1 align-items-start">
+            <div className="col-md-6 d-flex justify-content-center">
+              <div className="radio-player text-center" onClick={handleUserInteraction}>
+                {profile.logo && <img src={`/uploads/${profile.logo}`} alt="Company Logo" className="img-fluid mb-3" />}
+                <audio ref={audioRef} preload="none" style={{ display: 'none' }}></audio>
+                <audio ref={trackRef} preload="none" style={{ display: 'none' }}></audio>
+                <div className="mb-3">
+                  <button className="btn btn-danger btn-block mb-2" onClick={handlePlay}>Live</button>
+                  <button className="btn btn-danger btn-block mb-2" onClick={handleMute}>{isMuted ? 'Unmute' : 'Mute'}</button>
+                </div>
+                <div className="mb-3">
+                  <input
+                    type="range"
+                    className="form-control-range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value={volume}
+                    onChange={handleVolumeChange}
+                  />
+                </div>
+                {isLoading && <p>Connecting...</p>}
+                {!isOnline && <p>No connection.</p>}
+                {errorMessage && <p>{errorMessage}</p>}
+              </div>
+            </div>
+            <div className="col-md-6 d-flex justify-content-center">
+              {profile.alarmBlocked ? (
+                <div className="card text-center p-4">
+                  <div className="card-header">
+                    <h2>Alarm System is blocked</h2>
+                  </div>
+                  <p style={{ color: 'red', fontWeight: 'bold' }}>The alarm system for this profile is currently blocked.</p>
+                </div>
+              ) : (
+                <div className="card text-center p-4">
+                  <div className="card-header">
+                    <h2>Scheduled Tracks</h2>
+                  </div>
+                  <ul className="list-group list-group-flush">
+                    {schedule.map((item, index) => (
+                      <li key={index} className="list-group-item d-flex justify-content-between align-items-center" style={isNextToPlay(item.time) ? { fontWeight: 'bold', backgroundColor: '#ffecb3' } : {}}>
+                        <span className="dot" style={{ height: '10px', width: '10px', backgroundColor: '#ff0000', borderRadius: '50%', display: 'inline-block', marginRight: '10px' }}></span>
+                        {item.time} - {item.track.split('-').slice(1).join('-')}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+        <br />
+        <Footer />
       </div>
-
-      <Link to={`/radio/${id}/profile`}>
-        <button disabled={profile.alarmBlocked}>Go to Profile</button>
-      </Link>
-
-      <button onClick={handleLogout}>Logout</button>
-
-      {profile.alarmBlocked ? (
-        <p>The alarm system for this profile is currently blocked.</p>
-      ) : (
-        <>
-          <h2>Scheduled Tracks</h2>
-          <ul>
-            {schedule.map((item, index) => (
-              <li key={index} style={isNextToPlay(item.time) ? { fontWeight: 'bold' } : {}}>
-                {item.time} - {item.track.split('-').slice(1).join('-')}
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-      <Link to={`/localplayer/${id}`}>
-        <button>Go to Local Player</button>
-      </Link>
     </div>
   );
 };
