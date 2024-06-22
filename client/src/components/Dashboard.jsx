@@ -32,7 +32,11 @@ const Dashboard = () => {
         setRadioStreams(response.data);
       })
       .catch(error => {
-        console.error('There was an error fetching the radio streams!', error);
+        if (error.response && error.response.status === 401) {
+          handleLogout();
+        } else {
+          console.error('There was an error fetching the radio streams!', error);
+        }
       });
   };
 
@@ -44,7 +48,11 @@ const Dashboard = () => {
         fetchRadioStreams(); // Refresh the list after blocking
       })
       .catch(error => {
-        console.error('There was an error blocking the radio stream!', error);
+        if (error.response && error.response.status === 401) {
+          handleLogout();
+        } else {
+          console.error('There was an error blocking the radio stream!', error);
+        }
       });
   };
 
@@ -56,7 +64,11 @@ const Dashboard = () => {
         fetchRadioStreams(); // Refresh the list after unblocking
       })
       .catch(error => {
-        console.error('There was an error unblocking the radio stream!', error);
+        if (error.response && error.response.status === 401) {
+          handleLogout();
+        } else {
+          console.error('There was an error unblocking the radio stream!', error);
+        }
       });
   };
 
@@ -68,7 +80,11 @@ const Dashboard = () => {
         fetchRadioStreams(); // Refresh the list after blocking alarm system
       })
       .catch(error => {
-        console.error('There was an error blocking the alarm system!', error);
+        if (error.response && error.response.status === 401) {
+          handleLogout();
+        } else {
+          console.error('There was an error blocking the alarm system!', error);
+        }
       });
   };
 
@@ -80,7 +96,11 @@ const Dashboard = () => {
         fetchRadioStreams(); // Refresh the list after unblocking alarm system
       })
       .catch(error => {
-        console.error('There was an error unblocking the alarm system!', error);
+        if (error.response && error.response.status === 401) {
+          handleLogout();
+        } else {
+          console.error('There was an error unblocking the alarm system!', error);
+        }
       });
   };
 
@@ -92,7 +112,11 @@ const Dashboard = () => {
         fetchRadioStreams(); // Refresh the list after renewing subscription
       })
       .catch(error => {
-        console.error('There was an error renewing the subscription!', error);
+        if (error.response && error.response.status === 401) {
+          handleLogout();
+        } else {
+          console.error('There was an error renewing the subscription!', error);
+        }
       });
   };
 
