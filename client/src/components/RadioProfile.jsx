@@ -3,17 +3,20 @@ import axios from 'axios';
 import { useParams } from 'react-router-dom';
 import Footer from './Footer';
 import Header from './Header';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import { Oval } from 'react-loader-spinner';
 
 const RadioProfile = () => {
   const { id } = useParams();
   const [file, setFile] = useState(null);
-  const [message, setMessage] = useState('');
   const [schedule, setSchedule] = useState([]);
   const [tracks, setTracks] = useState([]);
   const [newTrack, setNewTrack] = useState('');
   const [newTime, setNewTime] = useState('');
   const [playingTrack, setPlayingTrack] = useState(null);
   const [playingScheduledTrack, setPlayingScheduledTrack] = useState(null);
+  const [loading, setLoading] = useState(false);
   const audioRefs = useRef([]);
   const scheduledAudioRefs = useRef([]);
 
@@ -23,22 +26,28 @@ const RadioProfile = () => {
   }, []);
 
   const fetchSchedule = () => {
+    setLoading(true);
     axios.get(`/radio/${id}/schedule`)
       .then(response => {
         setSchedule(response.data);
+        setLoading(false);
       })
       .catch(error => {
-        console.error('There was an error fetching the schedule!', error);
+        toast.error('Error fetching schedule');
+        setLoading(false);
       });
   };
 
   const fetchTracks = () => {
+    setLoading(true);
     axios.get(`/radio/${id}/tracks`)
       .then(response => {
         setTracks(response.data);
+        setLoading(false);
       })
       .catch(error => {
-        console.error('There was an error fetching the tracks!', error);
+        toast.error('Error fetching tracks');
+        setLoading(false);
       });
   };
 
@@ -47,57 +56,77 @@ const RadioProfile = () => {
   };
 
   const handleUpload = () => {
+    if (!file) {
+      toast.error('Please select a file to upload');
+      return;
+    }
+
+    setLoading(true);
     const formData = new FormData();
     formData.append('file', file);
 
     axios.post(`/radio/${id}/upload`, formData)
       .then(response => {
-        setMessage('File uploaded successfully');
+        toast.success('File uploaded successfully');
         fetchTracks(); // Refresh tracks after upload
+        setLoading(false);
       })
       .catch(error => {
-        setMessage('File upload failed');
+        toast.error('File upload failed');
+        setLoading(false);
       });
   };
 
   const handleDeleteScheduleItem = (index) => {
+    setLoading(true);
     const updatedSchedule = schedule.filter((_, i) => i !== index);
     axios.post(`/radio/${id}/schedule`, updatedSchedule)
       .then(response => {
         setSchedule(updatedSchedule);
-        setMessage('Schedule updated successfully');
+        toast.success('Schedule updated successfully');
+        setLoading(false);
       })
       .catch(error => {
-        setMessage('Failed to update schedule');
-        console.error('Error updating schedule:', error);
+        toast.error('Failed to update schedule');
+        setLoading(false);
       });
   };
 
   const handleDeleteTrack = (track) => {
     const trackName = track.split('-').slice(1).join('-'); // Extract the track name after the first hyphen
+    setLoading(true);
     axios.delete(`/radio/${id}/tracks/${trackName}`)
       .then(response => {
-        setMessage('Track deleted successfully');
+        toast.success('Track deleted successfully');
         fetchTracks(); // Refresh tracks after deletion
+        setLoading(false);
       })
       .catch(error => {
-        setMessage('Failed to delete track');
-        console.error('Error deleting track:', error);
+        toast.error('Failed to delete track');
+        setLoading(false);
       });
   };
 
   const handleAddTrack = () => {
+    if (!newTrack || !newTime) {
+      toast.error('Please select a track and time');
+      return;
+    }
+
+    setLoading(true);
     const newSchedule = { track: newTrack, time: newTime };
     const updatedSchedule = [...schedule, newSchedule];
-    setSchedule(updatedSchedule);
     axios.post(`/radio/${id}/schedule`, updatedSchedule)
       .then(response => {
-        console.log('Schedule saved to server');
-        fetchSchedule(); // Refresh schedule after adding new track
+        setSchedule(updatedSchedule);
+        toast.success('Track added to schedule');
+        setLoading(false);
       })
       .catch(error => {
-        console.error('Error saving schedule to server', error);
+        toast.error('Error saving schedule');
+        setLoading(false);
       });
+
     setNewTrack('');
     setNewTime('');
   };
@@ -130,11 +159,26 @@ const RadioProfile = () => {
         <Header />
         <div className="container mt-4" style={styles.container}>
           <h2 className="text-center text-primary mb-4" style={styles.heading}>Manage Radio Stream</h2>
+          {loading && (
+            <div style={styles.spinnerContainer}>
+              <Oval
+                height={50}
+                width={50}
+                color="#007bff"
+                wrapperStyle={{}}
+                wrapperClass=""
+                visible={true}
+                ariaLabel='oval-loading'
+                secondaryColor="#007bff"
+                strokeWidth={2}
+                strokeWidthSecondary={2}
+              />
+            </div>
+          )}
           <div className="card mb-4 p-4 shadow-sm" style={styles.card}>
             <div className="mb-3" style={styles.inputGroup}>
               <input type="file" className="form-control-file" style={styles.fileInput} onChange={handleFileChange} />
               <button className="btn btn-primary mt-2 btn-block" style={styles.uploadButton} onClick={handleUpload}>Upload</button>
-              <p className="mt-2 text-center" style={styles.message}>{message}</p>
             </div>
 
             <h3 className="text-primary mb-3" style={styles.subHeading}>Schedule Tracks</h3>
@@ -207,6 +251,7 @@ const RadioProfile = () => {
       </div>
       <br></br><br></br> <br></br> <br></br><br></br> <br></br> <br></br>
       <Footer />
+      <ToastContainer />
     </div>
   );
 };
@@ -317,8 +362,17 @@ const styles = {
     flexGrow: 1,
     marginRight: '10px'
   },
-  message: {
-    textAlign: 'center'
+  spinnerContainer: {
+    position: 'fixed',
+    top: '0',
+    left: '0',
+    width: '100%',
+    height: '100%',
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: '1000'
   }
 };
 

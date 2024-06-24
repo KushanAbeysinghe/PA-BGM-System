@@ -1,13 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom';
-import { differenceInDays, differenceInHours, addDays } from 'date-fns';
+import { differenceInDays, differenceInHours } from 'date-fns';
 import Footer from './Footer';
 import Header from './Header';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import { Oval } from 'react-loader-spinner';
 
 const Dashboard = () => {
   const [radioStreams, setRadioStreams] = useState([]);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [loading, setLoading] = useState(false);
+  const [alarmLoading, setAlarmLoading] = useState(false);
   const navigate = useNavigate();
   const token = localStorage.getItem('adminToken'); // Retrieve token from localStorage
 
@@ -25,22 +30,26 @@ const Dashboard = () => {
   }, [token]);
 
   const fetchRadioStreams = () => {
+    setLoading(true);
     axios.get('/radiostreams', {
       headers: { 'Authorization': `Bearer ${token}` }
     })
       .then(response => {
         setRadioStreams(response.data);
+        setLoading(false);
       })
       .catch(error => {
+        setLoading(false);
         if (error.response && error.response.status === 401) {
           handleLogout();
         } else {
-          console.error('There was an error fetching the radio streams!', error);
+          toast.error('There was an error fetching the radio streams!');
         }
       });
   };
 
   const handleBlock = (id) => {
+    setLoading(true);
     axios.put(`/radiostreams/${id}/block`, {}, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
@@ -48,15 +57,17 @@ const Dashboard = () => {
         fetchRadioStreams(); // Refresh the list after blocking
       })
       .catch(error => {
+        setLoading(false);
         if (error.response && error.response.status === 401) {
           handleLogout();
         } else {
-          console.error('There was an error blocking the radio stream!', error);
+          toast.error('There was an error blocking the radio stream!');
         }
       });
   };
 
   const handleUnblock = (id) => {
+    setLoading(true);
     axios.put(`/radiostreams/${id}/unblock`, {}, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
@@ -64,47 +75,57 @@ const Dashboard = () => {
         fetchRadioStreams(); // Refresh the list after unblocking
       })
       .catch(error => {
+        setLoading(false);
         if (error.response && error.response.status === 401) {
           handleLogout();
         } else {
-          console.error('There was an error unblocking the radio stream!', error);
+          toast.error('There was an error unblocking the radio stream!');
         }
       });
   };
 
   const handleBlockAlarm = (id) => {
+    setAlarmLoading(true);
     axios.put(`/radiostreams/${id}/block-alarm`, {}, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
       .then(response => {
         fetchRadioStreams(); // Refresh the list after blocking alarm system
+        setAlarmLoading(false);
+        toast.success('Alarm blocked successfully');
       })
       .catch(error => {
+        setAlarmLoading(false);
         if (error.response && error.response.status === 401) {
           handleLogout();
         } else {
-          console.error('There was an error blocking the alarm system!', error);
+          toast.error('There was an error blocking the alarm system!');
         }
       });
   };
 
   const handleUnblockAlarm = (id) => {
+    setAlarmLoading(true);
     axios.put(`/radiostreams/${id}/unblock-alarm`, {}, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
       .then(response => {
         fetchRadioStreams(); // Refresh the list after unblocking alarm system
+        setAlarmLoading(false);
+        toast.success('Alarm unblocked successfully');
       })
       .catch(error => {
+        setAlarmLoading(false);
         if (error.response && error.response.status === 401) {
           handleLogout();
         } else {
-          console.error('There was an error unblocking the alarm system!', error);
+          toast.error('There was an error unblocking the alarm system!');
         }
       });
   };
 
   const handleRenewSubscription = (stream) => {
+    setLoading(true);
     axios.put(`/radiostreams/${stream.id}/paid`, {}, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
@@ -112,10 +133,11 @@ const Dashboard = () => {
         fetchRadioStreams(); // Refresh the list after renewing subscription
       })
       .catch(error => {
+        setLoading(false);
         if (error.response && error.response.status === 401) {
           handleLogout();
         } else {
-          console.error('There was an error renewing the subscription!', error);
+          toast.error('There was an error renewing the subscription!');
         }
       });
   };
@@ -260,7 +282,35 @@ const Dashboard = () => {
           .btn-history {
             margin-right: 10px;
           }
+          .spinnerContainer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+          }
         `}</style>
+        {loading && (
+          <div className="spinnerContainer">
+            <Oval
+              height={50}
+              width={50}
+              color="#007bff"
+              wrapperStyle={{}}
+              wrapperClass=""
+              visible={true}
+              ariaLabel="oval-loading"
+              secondaryColor="#007bff"
+              strokeWidth={2}
+              strokeWidthSecondary={2}
+            />
+          </div>
+        )}
         <div className="d-flex justify-content-between align-items-center mb-4">
           <h2 className="text-primary">Radio Streams Dashboard</h2>
           <div>
@@ -321,6 +371,7 @@ const Dashboard = () => {
       </div>
       <br></br>
       <Footer />
+      <ToastContainer />
     </div>
   );
 };
