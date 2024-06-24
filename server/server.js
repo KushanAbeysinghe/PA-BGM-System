@@ -99,7 +99,7 @@ const getSubscriptionDays = (plan) => {
   }
 };
 
-const addToHistory = (streamId, action, details) => {
+const addToHistory = async (streamId, action, details) => {
   const stream = radioStreams.find(stream => stream.id == streamId);
   if (stream) {
     history.push({
@@ -110,7 +110,7 @@ const addToHistory = (streamId, action, details) => {
       timestamp: new Date(),
       details
     });
-    saveHistory();
+    await saveHistory();
   }
 };
 
@@ -145,7 +145,7 @@ app.post('/radiostreams', upload.single('logo'), async (req, res) => {
 
   await saveProfiles();
   await saveUsers();
-  addToHistory(newStream.id, 'Account created', `Initial subscription plan: ${subscriptionPlan}`);
+  await addToHistory(newStream.id, 'Account created', `Initial subscription plan: ${subscriptionPlan}`);
   res.send(newStream);
 });
 
@@ -159,30 +159,30 @@ app.put('/radiostreams/:id', upload.single('logo'), async (req, res) => {
     const now = new Date();
     if (name && name !== stream.name) {
       stream.name = name;
-      addToHistory(id, 'Name updated', `Updated to: ${name}`);
+      await addToHistory(id, 'Name updated', `Updated to: ${name}`);
     }
     if (url && url !== stream.url) {
       stream.url = url;
-      addToHistory(id, 'URL updated', `Updated to: ${url}`);
+      await addToHistory(id, 'URL updated', `Updated to: ${url}`);
     }
     if (subscriptionPlan && subscriptionPlan !== stream.subscriptionPlan) {
       const daysToAdd = getSubscriptionDays(subscriptionPlan);
       stream.subscriptionPlan = subscriptionPlan;
       stream.createdDate = now;
       stream.expirationDate = addDays(now, daysToAdd);
-      addToHistory(id, 'Subscription plan updated', `New plan: ${subscriptionPlan}`);
+      await addToHistory(id, 'Subscription plan updated', `New plan: ${subscriptionPlan}`);
     }
     if (companyName && companyName !== stream.companyName) {
       stream.companyName = companyName;
-      addToHistory(id, 'Company name updated', `Updated to: ${companyName}`);
+      await addToHistory(id, 'Company name updated', `Updated to: ${companyName}`);
     }
     if (email && email !== stream.email) {
       stream.email = email;
-      addToHistory(id, 'Email updated', `Updated to: ${email}`);
+      await addToHistory(id, 'Email updated', `Updated to: ${email}`);
     }
     if (logo) {
       stream.logo = logo;
-      addToHistory(id, 'Logo updated', `New logo uploaded`);
+      await addToHistory(id, 'Logo updated', `New logo uploaded`);
     }
     await saveProfiles();
     res.send(stream);
@@ -198,7 +198,7 @@ app.put('/radiostreams/:id/block', async (req, res) => {
   if (stream) {
     stream.blocked = true;
     await saveProfiles();
-    addToHistory(id, 'Profile blocked', 'Profile was blocked');
+    await addToHistory(id, 'Profile blocked', 'Profile was blocked');
     res.send('Radio stream blocked');
   } else {
     res.status(404).send('Radio stream not found');
@@ -212,7 +212,7 @@ app.put('/radiostreams/:id/unblock', async (req, res) => {
   if (stream) {
     stream.blocked = false;
     await saveProfiles();
-    addToHistory(id, 'Profile unblocked', 'Profile was unblocked');
+    await addToHistory(id, 'Profile unblocked', 'Profile was unblocked');
     res.send('Radio stream unblocked');
   } else {
     res.status(404).send('Radio stream not found');
@@ -226,7 +226,7 @@ app.put('/radiostreams/:id/block-alarm', async (req, res) => {
   if (stream) {
     stream.alarmBlocked = true;
     await saveProfiles();
-    addToHistory(id, 'Alarm blocked', 'Alarm was blocked');
+    await addToHistory(id, 'Alarm blocked', 'Alarm was blocked');
     res.send('Radio alarm system blocked');
   } else {
     res.status(404).send('Radio stream not found');
@@ -240,7 +240,7 @@ app.put('/radiostreams/:id/unblock-alarm', async (req, res) => {
   if (stream) {
     stream.alarmBlocked = false;
     await saveProfiles();
-    addToHistory(id, 'Alarm unblocked', 'Alarm was unblocked');
+    await addToHistory(id, 'Alarm unblocked', 'Alarm was unblocked');
     res.send('Radio alarm system unblocked');
   } else {
     res.status(404).send('Radio stream not found');
@@ -267,7 +267,7 @@ app.put('/radiostreams/:id/paid', async (req, res) => {
     stream.expirationDate = newExpirationDate;
 
     await saveProfiles();
-    addToHistory(id, 'Subscription renewed', `New expiration date: ${newExpirationDate}`);
+    await addToHistory(id, 'Subscription renewed', `New expiration date: ${newExpirationDate}`);
     res.send('Subscription renewed and alarm unblocked');
   } else {
     res.status(404).send('Radio stream not found');
@@ -282,18 +282,16 @@ app.delete('/radiostreams/:id', async (req, res) => {
   if (stream) {
     if (stream.logo) {
       const logoPath = path.join(__dirname, 'uploads', stream.logo);
-      if (fs.existsSync(logoPath)) {
-        fs.unlinkSync(logoPath);
+      if (await fs.pathExists(logoPath)) {
+        await fs.unlink(logoPath);
       }
     }
 
     const trackPath = path.join(__dirname, 'uploads', 'tracks');
-    const files = fs.readdirSync(trackPath);
-    files.forEach(file => {
-      if (file.startsWith(`${id}-`)) {
-        fs.unlinkSync(path.join(trackPath, file));
-      }
-    });
+    const files = await fs.readdir(trackPath);
+    await Promise.all(
+      files.filter(file => file.startsWith(`${id}-`)).map(file => fs.unlink(path.join(trackPath, file)))
+    );
 
     users = users.filter(user => user.radioProfileId != id);
 
@@ -302,7 +300,7 @@ app.delete('/radiostreams/:id', async (req, res) => {
     await saveProfiles();
     await saveUsers();
     await saveSchedules();
-    addToHistory(id, 'Account deleted', 'All associated files deleted');
+    await addToHistory(id, 'Account deleted', 'All associated files deleted');
     res.send('Radio stream and associated files deleted');
   } else {
     res.status(404).send('Radio stream not found');
@@ -314,16 +312,16 @@ app.delete('/radio/:id/tracks/:track', async (req, res) => {
   console.log(`Deleting track: ${track} for radio stream with ID: ${id}`);
   const trackPath = path.join(__dirname, 'uploads', 'tracks', `${id}-${track}`);
   
-  if (fs.existsSync(trackPath)) {
-    fs.unlinkSync(trackPath);
-    addToHistory(id, 'Track deleted', `Track: ${track} deleted`);
+  if (await fs.pathExists(trackPath)) {
+    await fs.unlink(trackPath);
+    await addToHistory(id, 'Track deleted', `Track: ${track} deleted`);
     res.send('Track deleted successfully');
   } else {
     res.status(404).send('Track not found');
   }
 });
 
-app.post('/radio/:id/upload', upload.single('file'), (req, res) => {
+app.post('/radio/:id/upload', upload.single('file'), async (req, res) => {
   const file = req.file;
   const radioId = req.params.id;
   console.log(`Uploading track for radio stream with ID: ${radioId}`);
@@ -332,20 +330,64 @@ app.post('/radio/:id/upload', upload.single('file'), (req, res) => {
   }
 
   const targetPath = path.join(__dirname, 'uploads', 'tracks', `${radioId}-${file.originalname}`);
-  fs.renameSync(file.path, targetPath);
-  addToHistory(radioId, 'Track uploaded', `Track: ${file.originalname} uploaded`);
+  await fs.move(file.path, targetPath);
+  await addToHistory(radioId, 'Track uploaded', `Track: ${file.originalname} uploaded`);
   res.send({ fileName: `${radioId}-${file.originalname}` });
 });
 
-app.get('/radio/:id/tracks', (req, res) => {
+app.get('/radio/:id/tracks', async (req, res) => {
   const radioId = req.params.id;
   console.log(`Fetching tracks for radio stream with ID: ${radioId}`);
-  fs.readdir(path.join(__dirname, 'uploads', 'tracks'), (err, files) => {
-    if (err) {
-      return res.status(500).send('Error reading tracks directory.');
-    }
+  try {
+    const files = await fs.readdir(path.join(__dirname, 'uploads', 'tracks'));
     const filteredFiles = files.filter(file => file.startsWith(`${radioId}-`));
     res.send(filteredFiles);
+  } catch (err) {
+    res.status(500).send('Error reading tracks directory.');
+  }
+});
+
+// Handle streaming of MP3 files with range requests
+app.get('/uploads/tracks/:file', (req, res) => {
+  const file = req.params.file;
+  const filePath = path.join(__dirname, 'uploads', 'tracks', file);
+  fs.stat(filePath, (err, stats) => {
+    if (err) {
+      if (err.code === 'ENOENT') {
+        return res.status(404).send('Track not found');
+      }
+      return res.status(500).send(err);
+    }
+
+    const range = req.headers.range;
+    if (!range) {
+      const head = {
+        'Content-Length': stats.size,
+        'Content-Type': 'audio/mpeg',
+      };
+      res.writeHead(200, head);
+      fs.createReadStream(filePath).pipe(res);
+    } else {
+      const parts = range.replace(/bytes=/, '').split('-');
+      const start = parseInt(parts[0], 10);
+      const end = parts[1] ? parseInt(parts[1], 10) : stats.size - 1;
+
+      if (start >= stats.size) {
+        res.status(416).send(`Requested range not satisfiable\n${start} >= ${stats.size}`);
+        return;
+      }
+
+      const chunksize = (end - start) + 1;
+      const file = fs.createReadStream(filePath, { start, end });
+      const head = {
+        'Content-Range': `bytes ${start}-${end}/${stats.size}`,
+        'Accept-Ranges': 'bytes',
+        'Content-Length': chunksize,
+        'Content-Type': 'audio/mpeg',
+      };
+      res.writeHead(206, head);
+      file.pipe(res);
+    }
   });
 });
 
@@ -360,7 +402,7 @@ app.post('/radio/:id/schedule', async (req, res) => {
   console.log(`Updating schedule for radio stream with ID: ${radioId}`);
   schedules[radioId] = req.body;
   await saveSchedules();
-  addToHistory(radioId, 'Schedule updated', 'Schedule updated');
+  await addToHistory(radioId, 'Schedule updated', 'Schedule updated');
   res.send('Schedule updated successfully.');
 });
 
@@ -445,9 +487,6 @@ const adminAuth = (req, res, next) => {
   }
 };
 
-
-
-
 app.get('/radio/:id', auth, (req, res) => {
   res.send('Protected radio profile data');
 });
@@ -458,6 +497,10 @@ app.get('/dashboard', adminAuth, (req, res) => {
 
 app.get('/history', (req, res) => {
   res.send(history);
+});
+
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 app.listen(PORT, () => {

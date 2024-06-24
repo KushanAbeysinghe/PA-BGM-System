@@ -9,7 +9,7 @@ const RadioPlayer = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const audioRef = useRef(null);
-  const trackRef = useRef(null);
+  const scheduledTrackRef = useRef(null);
   const [isMuted, setIsMuted] = useState(false);
   const [volume, setVolume] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
@@ -21,7 +21,9 @@ const RadioPlayer = () => {
   const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString('en-GB', { hour12: false }));
   const [profile, setProfile] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
-  const [userInteracted, setUserInteracted] = useState(false); // Track user interaction
+  const [userInteracted, setUserInteracted] = useState(false);
+  const [playingTrack, setPlayingTrack] = useState(null);
+  const [highlightEndTime, setHighlightEndTime] = useState(null);
 
   useEffect(() => {
     fetchRadioProfile();
@@ -39,7 +41,7 @@ const RadioPlayer = () => {
       }
     }, 1000);
     return () => clearInterval(interval);
-  }, [schedule, profile]);
+  }, [schedule, profile, currentTime]);
 
   useEffect(() => {
     if (!profile) return;
@@ -75,6 +77,13 @@ const RadioPlayer = () => {
       window.removeEventListener('offline', handleOffline);
     };
   }, [profile]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      preloadNextTrack();
+    }, 5000); // Check every 5 seconds to preload the next track
+    return () => clearInterval(interval);
+  }, [schedule, currentTime]);
 
   const fetchRadioProfile = async () => {
     try {
@@ -139,21 +148,28 @@ const RadioPlayer = () => {
   };
 
   const playScheduledTrack = (track) => {
-    if (!profile || profile.alarmBlocked || !audioRef.current || !trackRef.current) return;
+    if (!profile || profile.alarmBlocked || !audioRef.current || !scheduledTrackRef.current) return;
 
+    setPlayingTrack(track);
     fadeOut(audioRef.current, () => {
-      trackRef.current.src = `/uploads/tracks/${track}`;
-      console.log('Track source set to:', trackRef.current.src);
-      trackRef.current.load();
-      trackRef.current.oncanplaythrough = () => {
-        trackRef.current.play().catch(error => {
+      scheduledTrackRef.current.src = `/uploads/tracks/${track}`;
+      console.log('Track source set to:', scheduledTrackRef.current.src);
+      scheduledTrackRef.current.load();
+      scheduledTrackRef.current.oncanplaythrough = () => {
+        scheduledTrackRef.current.play().catch(error => {
           console.error('Error playing track:', error);
         });
       };
-      trackRef.current.onended = () => {
+      scheduledTrackRef.current.onended = () => {
+        setPlayingTrack(null);
         fadeIn(audioRef.current);
         audioRef.current.play();
       };
+
+      // Calculate the end time for highlighting
+      const trackDuration = scheduledTrackRef.current.duration * 1000; // duration in milliseconds
+      const endTime = new Date().getTime() + trackDuration + 20000; // add 20 seconds
+      setHighlightEndTime(endTime);
     });
   };
 
@@ -182,6 +198,29 @@ const RadioPlayer = () => {
         audio.volume = 1.0;
       }
     }, 200);
+  };
+
+  const preloadNextTrack = () => {
+    const now = new Date();
+    const futureTracks = schedule.filter(track => {
+      const [hours, minutes, seconds] = track.time.split(':').map(Number);
+      const trackTime = new Date();
+      trackTime.setHours(hours, minutes, seconds);
+      return trackTime > now;
+    });
+
+    if (futureTracks.length > 0) {
+      const nextTrack = futureTracks[0];
+      const nextTrackTime = new Date();
+      const [hours, minutes, seconds] = nextTrack.time.split(':').map(Number);
+      nextTrackTime.setHours(hours, minutes, seconds);
+
+      // Preload the track 60 seconds before the scheduled time
+      if (nextTrackTime - now <= 60000 && scheduledTrackRef.current.src !== `/uploads/tracks/${nextTrack.track}`) {
+        scheduledTrackRef.current.src = `/uploads/tracks/${nextTrack.track}`;
+        scheduledTrackRef.current.load();
+      }
+    }
   };
 
   const handleAddTrack = () => {
@@ -229,13 +268,13 @@ const RadioPlayer = () => {
     const daysPassed = Math.ceil(hoursPassed / 24);
     const daysLeft = subscriptionDays - daysPassed;
 
-    console.log(`Current Date: ${now}`);
-    console.log(`Created Date: ${created}`);
-    console.log(`Expiration Date: ${expiration}`);
-    console.log(`Hours Passed: ${hoursPassed}`);
-    console.log(`Days Passed (ceil): ${daysPassed}`);
-    console.log(`Subscription Days: ${subscriptionDays}`);
-    console.log(`Days Left: ${daysLeft}`);
+    // console.log(`Current Date: ${now}`);
+    // console.log(`Created Date: ${created}`);
+    // console.log(`Expiration Date: ${expiration}`);
+    // console.log(`Hours Passed: ${hoursPassed}`);
+    // console.log(`Days Passed (ceil): ${daysPassed}`);
+    // console.log(`Subscription Days: ${subscriptionDays}`);
+    // console.log(`Days Left: ${daysLeft}`);
 
     return daysLeft;
   };
@@ -383,7 +422,6 @@ const RadioPlayer = () => {
               <div className="radio-player text-center" onClick={handleUserInteraction}>
                 {profile.logo && <img src={`/uploads/${profile.logo}`} alt="Company Logo" className="img-fluid mb-3" />}
                 <audio ref={audioRef} preload="none" style={{ display: 'none' }}></audio>
-                <audio ref={trackRef} preload="none" style={{ display: 'none' }}></audio>
                 <div className="mb-3">
                   <button className="btn btn-danger btn-block mb-2" onClick={handlePlay}>Live</button>
                   <button className="btn btn-danger btn-block mb-2" onClick={handleMute}>{isMuted ? 'Unmute' : 'Mute'}</button>
@@ -416,15 +454,38 @@ const RadioPlayer = () => {
                 <div className="card text-center p-4">
                   <div className="card-header">
                     <h2>Scheduled Tracks</h2>
+                    <div className="scheduled-player">
+                    <br></br>
+                    <audio ref={scheduledTrackRef} controls preload="none" style={{ width: '100%' }}></audio> {/* Scheduled track player */}
+                  </div>
                   </div>
                   <ul className="list-group list-group-flush">
-                    {schedule.map((item, index) => (
-                      <li key={index} className="list-group-item d-flex justify-content-between align-items-center" style={isNextToPlay(item.time) ? { fontWeight: 'bold', backgroundColor: '#ffecb3' } : {}}>
-                        <span className="dot" style={{ height: '10px', width: '10px', backgroundColor: '#ff0000', borderRadius: '50%', display: 'inline-block', marginRight: '10px' }}></span>
-                        {item.time} - {item.track.split('-').slice(1).join('-')}
-                      </li>
-                    ))}
+                    {schedule.map((item, index) => {
+                      const isPlaying = item.track === playingTrack;
+                      const isHighlighted = highlightEndTime && new Date().getTime() < highlightEndTime;
+                      return (
+                        <li
+                          key={index}
+                          className={`list-group-item d-flex justify-content-between align-items-center ${isPlaying || isHighlighted ? 'bg-warning' : ''}`}
+                          style={isNextToPlay(item.time) ? { fontWeight: 'bold', backgroundColor: '#ffecb3' } : {}}
+                        >
+                          <span
+                            className="dot"
+                            style={{
+                              height: '10px',
+                              width: '10px',
+                              backgroundColor: '#ff0000',
+                              borderRadius: '50%',
+                              display: 'inline-block',
+                              marginRight: '10px'
+                            }}
+                          ></span>
+                          {item.time} - {item.track.split('-').slice(1).join('-')}
+                        </li>
+                      );
+                    })}
                   </ul>
+                 
                 </div>
               )}
             </div>

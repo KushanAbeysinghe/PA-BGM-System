@@ -20,6 +20,8 @@ const LocalPlayer = () => {
   const [currentLocalTrackIndex, setCurrentLocalTrackIndex] = useState(0);
   const [profile, setProfile] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
+  const [playingTrack, setPlayingTrack] = useState(null);
+  const [highlightEndTime, setHighlightEndTime] = useState(null);
 
   useEffect(() => {
     fetchProfile();
@@ -49,6 +51,13 @@ const LocalPlayer = () => {
       }
     };
   }, [currentLocalTrackIndex, localTracks]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      preloadNextTrack();
+    }, 5000); // Check every 5 seconds to preload the next track
+    return () => clearInterval(interval);
+  }, [schedule, currentTime]);
 
   const fetchProfile = async () => {
     try {
@@ -121,25 +130,26 @@ const LocalPlayer = () => {
   const playScheduledTrack = (track) => {
     if (!profile || profile.alarmBlocked || !localAudioRef.current || !alarmAudioRef.current) return;
 
+    setPlayingTrack(track);
     fadeOut(localAudioRef.current, () => {
-      axios.get(`/uploads/tracks/${track}`, { responseType: 'blob' })
-        .then(response => {
-          const url = URL.createObjectURL(response.data);
-          alarmAudioRef.current.src = url;
-          alarmAudioRef.current.load();
-          alarmAudioRef.current.oncanplaythrough = () => {
-            alarmAudioRef.current.play().catch(error => {
-              console.error('Error playing track:', error);
-            });
-          };
-          alarmAudioRef.current.onended = () => {
-            fadeIn(localAudioRef.current);
-            localAudioRef.current.play();
-          };
-        })
-        .catch(error => {
-          console.error('Error fetching the track:', error);
+      alarmAudioRef.current.src = `/uploads/tracks/${track}`;
+      console.log('Track source set to:', alarmAudioRef.current.src);
+      alarmAudioRef.current.load();
+      alarmAudioRef.current.oncanplaythrough = () => {
+        alarmAudioRef.current.play().catch(error => {
+          console.error('Error playing track:', error);
         });
+      };
+      alarmAudioRef.current.onended = () => {
+        setPlayingTrack(null);
+        fadeIn(localAudioRef.current);
+        localAudioRef.current.play();
+      };
+
+      // Calculate the end time for highlighting
+      const trackDuration = alarmAudioRef.current.duration * 1000; // duration in milliseconds
+      const endTime = new Date().getTime() + trackDuration + 20000; // add 20 seconds
+      setHighlightEndTime(endTime);
     });
   };
 
@@ -168,6 +178,29 @@ const LocalPlayer = () => {
         audio.volume = 1.0;
       }
     }, 200);
+  };
+
+  const preloadNextTrack = () => {
+    const now = new Date();
+    const futureTracks = schedule.filter(track => {
+      const [hours, minutes, seconds] = track.time.split(':').map(Number);
+      const trackTime = new Date();
+      trackTime.setHours(hours, minutes, seconds);
+      return trackTime > now;
+    });
+
+    if (futureTracks.length > 0) {
+      const nextTrack = futureTracks[0];
+      const nextTrackTime = new Date();
+      const [hours, minutes, seconds] = nextTrack.time.split(':').map(Number);
+      nextTrackTime.setHours(hours, minutes, seconds);
+
+      // Preload the track 60 seconds before the scheduled time
+      if (nextTrackTime - now <= 60000 && alarmAudioRef.current.src !== `/uploads/tracks/${nextTrack.track}`) {
+        alarmAudioRef.current.src = `/uploads/tracks/${nextTrack.track}`;
+        alarmAudioRef.current.load();
+      }
+    }
   };
 
   const handleLocalTrackEnd = () => {
@@ -234,13 +267,13 @@ const LocalPlayer = () => {
     const daysPassed = Math.ceil(hoursPassed / 24);
     const daysLeft = subscriptionDays - daysPassed;
 
-    console.log(`Current Date: ${now}`);
-    console.log(`Created Date: ${created}`);
-    console.log(`Expiration Date: ${expiration}`);
-    console.log(`Hours Passed: ${hoursPassed}`);
-    console.log(`Days Passed (ceil): ${daysPassed}`);
-    console.log(`Subscription Days: ${subscriptionDays}`);
-    console.log(`Days Left: ${daysLeft}`);
+    // console.log(`Current Date: ${now}`);
+    // console.log(`Created Date: ${created}`);
+    // console.log(`Expiration Date: ${expiration}`);
+    // console.log(`Hours Passed: ${hoursPassed}`);
+    // console.log(`Days Passed (ceil): ${daysPassed}`);
+    // console.log(`Subscription Days: ${subscriptionDays}`);
+    // console.log(`Days Left: ${daysLeft}`);
 
     return daysLeft;
   };
@@ -267,7 +300,7 @@ const LocalPlayer = () => {
   if (profile.blocked) {
     return (
       <div className="container vh-100 d-flex flex-column align-items-center justify-content-center">
-        <style jsx>{`
+        <style>{`
           .blocked-message {
             color: red;
             font-weight: bold;
@@ -285,7 +318,7 @@ const LocalPlayer = () => {
       <Header />
       <div className="d-flex flex-column vh-100">
         <div className="container flex-grow-1 d-flex flex-column">
-          <style jsx>{`
+          <style>{`
             .local-player {
               background-color: white;
               border-radius: 8px;
@@ -427,14 +460,36 @@ const LocalPlayer = () => {
                 <div className="card text-center p-4">
                   <div className="card-header">
                     <h2>Scheduled Tracks</h2>
+                    <div className="scheduled-player">
+                      <br />
+                      <audio ref={alarmAudioRef} controls preload="none" style={{ width: '100%' }}></audio>
+                    </div>
                   </div>
                   <ul className="list-group list-group-flush">
-                    {schedule.map((item, index) => (
-                      <li key={index} className={`list-group-item d-flex justify-content-between align-items-center ${isNextToPlay(item.time) ? 'active' : ''}`}>
-                        <span className="dot" style={{ height: '10px', width: '10px', backgroundColor: '#ff0000', borderRadius: '50%', display: 'inline-block', marginRight: '10px' }}></span>
-                        {item.time} - {item.track.split('-').slice(1).join('-')}
-                      </li>
-                    ))}
+                    {schedule.map((item, index) => {
+                      const isPlaying = item.track === playingTrack;
+                      const isHighlighted = highlightEndTime && new Date().getTime() < highlightEndTime;
+                      return (
+                        <li
+                          key={index}
+                          className={`list-group-item d-flex justify-content-between align-items-center ${isPlaying || isHighlighted ? 'bg-warning' : ''}`}
+                          style={isPlaying || isHighlighted ? { fontWeight: 'bold', backgroundColor: '#ffecb3' } : {}}
+                        >
+                          <span
+                            className="dot"
+                            style={{
+                              height: '10px',
+                              width: '10px',
+                              backgroundColor: '#ff0000',
+                              borderRadius: '50%',
+                              display: 'inline-block',
+                              marginRight: '10px'
+                            }}
+                          ></span>
+                          {item.time} - {item.track.split('-').slice(1).join('-')}
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               )}
