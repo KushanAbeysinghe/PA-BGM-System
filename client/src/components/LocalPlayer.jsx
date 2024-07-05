@@ -16,6 +16,7 @@ const LocalPlayer = () => {
   const [schedule, setSchedule] = useState([]);
   const [newTrack, setNewTrack] = useState('');
   const [newTime, setNewTime] = useState('');
+  const [alarmName, setAlarmName] = useState(''); // New state for alarm name
   const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString('en-GB', { hour12: false }));
   const [currentLocalTrackIndex, setCurrentLocalTrackIndex] = useState(0);
   const [profile, setProfile] = useState(null);
@@ -223,7 +224,7 @@ const LocalPlayer = () => {
   };
 
   const handleAddTrack = () => {
-    const newSchedule = { track: newTrack, time: newTime };
+    const newSchedule = { track: newTrack, time: newTime, alarmName }; // Include alarm name
     const updatedSchedule = [...schedule, newSchedule];
     setSchedule(updatedSchedule);
     axios.post(`/radio/${id}/schedule`, updatedSchedule)
@@ -235,6 +236,7 @@ const LocalPlayer = () => {
       });
     setNewTrack('');
     setNewTime('');
+    setAlarmName(''); // Clear alarm name input
   };
 
   const getDaysLeft = (expirationDate, createdDate, subscriptionPlan) => {
@@ -266,14 +268,6 @@ const LocalPlayer = () => {
     const hoursPassed = differenceInHours(now, created);
     const daysPassed = Math.ceil(hoursPassed / 24);
     const daysLeft = subscriptionDays - daysPassed;
-
-    // console.log(`Current Date: ${now}`);
-    // console.log(`Created Date: ${created}`);
-    // console.log(`Expiration Date: ${expiration}`);
-    // console.log(`Hours Passed: ${hoursPassed}`);
-    // console.log(`Days Passed (ceil): ${daysPassed}`);
-    // console.log(`Subscription Days: ${subscriptionDays}`);
-    // console.log(`Days Left: ${daysLeft}`);
 
     return daysLeft;
   };
@@ -376,14 +370,14 @@ const LocalPlayer = () => {
             }
             .header {
               text-align: center;
-              margin-bottom: 20px;
+              margin-bottom: 10px;
             }
             .header h1 {
-              font-size: 3rem;
-              margin-top: 50px;
+              font-size: 2rem;
+              margin-top: 20px;
             }
             .header h2 {
-              font-size: 1.5rem;
+              font-size: 1rem;
               margin: 0;
             }
             .subscription-info {
@@ -408,8 +402,7 @@ const LocalPlayer = () => {
             <button className="btn btn-secondary" onClick={handleLogout}>Logout</button>
           </div>
           <div className="header">
-            <h1>{profile.name}</h1>
-            <h2>{profile.companyName}</h2>
+            <h1>{profile.name} - {profile.companyName}</h1>
             <div className="subscription-info">
               <p>Subscription Plan: {profile.subscriptionPlan}<br></br>
               Days left to expire: {getDaysLeft(profile.expirationDate, profile.createdDate, profile.subscriptionPlan)}</p>
@@ -486,7 +479,8 @@ const LocalPlayer = () => {
                               marginRight: '10px'
                             }}
                           ></span>
-                          {item.time} - {item.track.split('-').slice(1).join('-')}
+                          {item.time} - {item.alarmName} {/* Display alarm name */}
+                          {/* - {item.track.split('-').slice(1).join('-')} */}
                         </li>
                       );
                     })}

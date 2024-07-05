@@ -14,6 +14,7 @@ const RadioProfile = () => {
   const [tracks, setTracks] = useState([]);
   const [newTrack, setNewTrack] = useState('');
   const [newTime, setNewTime] = useState('');
+  const [alarmName, setAlarmName] = useState(''); // New state for alarm name
   const [playingTrack, setPlayingTrack] = useState(null);
   const [playingScheduledTrack, setPlayingScheduledTrack] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -108,13 +109,13 @@ const RadioProfile = () => {
   };
 
   const handleAddTrack = () => {
-    if (!newTrack || !newTime) {
-      toast.error('Please select a track and time');
+    if (!newTrack || !newTime || !alarmName) {
+      toast.error('Please select a track, time and enter alarm name');
       return;
     }
 
     setLoading(true);
-    const newSchedule = { track: newTrack, time: newTime };
+    const newSchedule = { track: newTrack, time: newTime, alarmName }; // Include alarm name
     const updatedSchedule = [...schedule, newSchedule];
     axios.post(`/radio/${id}/schedule`, updatedSchedule)
       .then(response => {
@@ -129,6 +130,7 @@ const RadioProfile = () => {
 
     setNewTrack('');
     setNewTime('');
+    setAlarmName(''); // Clear alarm name input
   };
 
   const handlePlayPause = (index) => {
@@ -202,6 +204,14 @@ const RadioProfile = () => {
                   <option key={index} value={track}>{track.split('-').slice(1).join('-')}</option>
                 ))}
               </select>
+              <input
+                type="text"
+                className="form-control"
+                style={styles.input}
+                placeholder="Enter alarm name"
+                value={alarmName}
+                onChange={(e) => setAlarmName(e.target.value)}
+              />
               <div className="input-group-append">
                 <button className="btn btn-primary" style={styles.addButton} onClick={handleAddTrack}>Add</button>
               </div>
@@ -211,7 +221,7 @@ const RadioProfile = () => {
             <ul className="list-group mb-3" style={styles.listGroup}>
               {schedule.map((item, index) => (
                 <li key={index} className="list-group-item d-flex justify-content-between align-items-center" style={styles.listItem}>
-                  <span style={styles.trackName}>{item.time} - {item.track}</span>
+                  <span style={styles.trackName}>{item.time} - {item.track} - {item.alarmName}</span>
                   <div style={styles.buttonGroup}>
                     <audio ref={el => scheduledAudioRefs.current[index] = el} src={`/uploads/tracks/${item.track}`} />
                     <button

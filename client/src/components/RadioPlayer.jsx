@@ -18,6 +18,7 @@ const RadioPlayer = () => {
   const [schedule, setSchedule] = useState([]);
   const [newTrack, setNewTrack] = useState('');
   const [newTime, setNewTime] = useState('');
+  const [alarmName, setAlarmName] = useState(''); // New state for alarm name
   const [currentTime, setCurrentTime] = useState(new Date().toLocaleTimeString('en-GB', { hour12: false }));
   const [profile, setProfile] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
@@ -224,7 +225,7 @@ const RadioPlayer = () => {
   };
 
   const handleAddTrack = () => {
-    const newSchedule = { track: newTrack, time: newTime };
+    const newSchedule = { track: newTrack, time: newTime, alarmName }; // Include alarm name
     const updatedSchedule = [...schedule, newSchedule];
     setSchedule(updatedSchedule);
     axios.post(`/radio/${id}/schedule`, updatedSchedule)
@@ -236,6 +237,7 @@ const RadioPlayer = () => {
       });
     setNewTrack('');
     setNewTime('');
+    setAlarmName(''); // Clear alarm name input
   };
 
   const getDaysLeft = (expirationDate, createdDate, subscriptionPlan) => {
@@ -374,14 +376,14 @@ const RadioPlayer = () => {
             }
             .header {
               text-align: center;
-              margin-bottom: 20px;
+              margin-bottom: 10px;
             }
             .header h1 {
-              font-size: 3rem;
-              margin-top: 50px;
+              font-size: 2rem;
+              margin-top: 20px;
             }
             .header h2 {
-              font-size: 1.5rem;
+              font-size: 1rem;
               margin: 0;
             }
             .subscription-info {
@@ -410,8 +412,7 @@ const RadioPlayer = () => {
             <button className="btn btn-secondary" onClick={handleLogout}>Logout</button>
           </div>
           <div className="header">
-            <h1>{profile.name}</h1>
-            <h2>{profile.companyName}</h2>
+          <h1>{profile.name} - {profile.companyName}</h1>
             <div className="subscription-info">
               <p>Subscription Plan: {profile.subscriptionPlan}<br />
               Days left to expire: {getDaysLeft(profile.expirationDate, profile.createdDate, profile.subscriptionPlan)}</p>
@@ -480,7 +481,8 @@ const RadioPlayer = () => {
                               marginRight: '10px'
                             }}
                           ></span>
-                          {item.time} - {item.track.split('-').slice(1).join('-')}
+                          {item.time}  - {item.alarmName} {/* Display alarm name */}
+                          {/* {item.track.split('-').slice(1).join('-')} */}
                         </li>
                       );
                     })}
