@@ -37,7 +37,7 @@ const FooterContainer = styled.div`
 const Footer = () => (
   <FooterContainer>
     Powered By: PLANET ENTERTAINMENT 
-    <img src={`${process.env.PUBLIC_URL}/images/logo.jpg`} alt="Planet Entertainment Logo" />
+    <img src={`/logo.jpg`} alt="Planet Entertainment Logo" />
   </FooterContainer>
 );
 
