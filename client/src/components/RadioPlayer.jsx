@@ -296,6 +296,12 @@ const RadioPlayer = () => {
     navigate('/login');
   };
 
+  const sortedSchedule = [...schedule].sort((a, b) => {
+    const [aHours, aMinutes] = a.time.split(':').map(Number);
+    const [bHours, bMinutes] = b.time.split(':').map(Number);
+    return aHours * 60 + aMinutes - (bHours * 60 + bMinutes);
+  });
+
   if (!profile) {
     return <div>Loading...</div>;
   }
@@ -454,14 +460,14 @@ const RadioPlayer = () => {
               ) : (
                 <div className="card text-center p-4">
                   <div className="card-header">
-                    <h2>Scheduled Tracks</h2>
+                  <h2>Scheduled Tracks</h2>
                     <div className="scheduled-player">
-                    <br></br>
-                    <audio ref={scheduledTrackRef} controls preload="none" style={{ width: '100%' }}></audio> {/* Scheduled track player */}
-                  </div>
+                      <br />
+                      <audio ref={scheduledTrackRef} controls preload="none" style={{ width: '100%' }}></audio>
+                    </div>
                   </div>
                   <ul className="list-group list-group-flush">
-                    {schedule.map((item, index) => {
+                    {sortedSchedule.map((item, index) => {
                       const isPlaying = item.track === playingTrack;
                       const isHighlighted = highlightEndTime && new Date().getTime() < highlightEndTime;
                       return (
